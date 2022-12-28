@@ -13,12 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.datastax.oss.pulsar.functions.awslambda;
+package com.datastax.oss.pulsar.functions.awslambda.tests;
 
-import lombok.Data;
+public class DockerTest {
 
-@Data
-public class LambdaResponse {
-  int statusCode;
-  JsonRecord body;
+  private static final String IMAGE_LUNASTREAMING210 = "datastax/lunastreaming:2.10_1.5";
+  private static final String IMAGE_PULSAR211 = "apachepulsar/pulsar:2.11.0";
+
+  public static class LunaStreaming210 extends AbstractDockerTest {
+    LunaStreaming210() {
+      super(IMAGE_LUNASTREAMING210);
+    }
+  }
+
+  //  public static class Pulsar211 extends AbstractDockerTest {
+  //    Pulsar211() {
+  //      super(IMAGE_PULSAR211);
+  //    }
+  //  }
 }

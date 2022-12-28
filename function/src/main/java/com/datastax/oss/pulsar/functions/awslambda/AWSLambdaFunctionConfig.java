@@ -29,10 +29,7 @@ package com.datastax.oss.pulsar.functions.awslambda; /*
                                                       * limitations under the License.
                                                       */
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.io.Serializable;
-import java.util.Map;
 import lombok.Data;
 import org.apache.pulsar.io.core.annotations.FieldDoc;
 
@@ -89,5 +86,4 @@ public class AWSLambdaFunctionConfig implements Serializable {
     help = "Invoke a lambda function synchronously, false to invoke asynchronously."
   )
   private boolean synchronousInvocation = true;
-
 }

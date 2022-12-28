@@ -21,9 +21,9 @@
   <groupId>com.datastax.oss</groupId>
   <artifactId>pulsar-function-aws-lambda-parent</artifactId>
   <packaging>pom</packaging>
-  <version>1.0.3-SNAPSHOT</version>
-  <name>Pulsar transformations parent</name>
-  <description>A Pulsar Function that provides common basic transformations of the data</description>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>Pulsar Function AWS Lambda parent</name>
+  <description>A Pulsar Function that delegates the execution to an AWS Lambda function</description>
   <url>https://github.com/datastax/pulsar-transformations</url>
   <inceptionYear>2022</inceptionYear>
   <organization>
@@ -44,6 +44,7 @@
   </properties>
   <modules>
     <module>function</module>
+    <module>tests</module>
   </modules>
   <dependencyManagement>
     <dependencies>
@@ -62,6 +63,11 @@
       <dependency>
         <groupId>${pulsar.groupId}</groupId>
         <artifactId>pulsar-client-original</artifactId>
+        <version>${pulsar.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${pulsar.groupId}</groupId>
+        <artifactId>pulsar-client-admin</artifactId>
         <version>${pulsar.version}</version>
       </dependency>
       <dependency>

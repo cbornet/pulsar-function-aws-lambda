@@ -53,26 +53,33 @@ public class JsonRecord {
 
 @Data
 @JsonTypeInfo(
-    use = JsonTypeInfo.Id.NAME,
-    property = "schemaType")
+  use = JsonTypeInfo.Id.NAME,
+  include = JsonTypeInfo.As.EXISTING_PROPERTY,
+  visible = true,
+  property = "schemaType"
+)
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = StringTypedValue.class, name = "STRING"),
-    @JsonSubTypes.Type(value = ByteTypedValue.class, name = "INT8"),
-    @JsonSubTypes.Type(value = ShortTypedValue.class, name = "INT16"),
-    @JsonSubTypes.Type(value = IntegerTypedValue.class, name = "INT32"),
-    @JsonSubTypes.Type(value = LongTypedValue.class, name = "INT64"),
-    @JsonSubTypes.Type(value = FloatTypedValue.class, name = "FLOAT"),
-    @JsonSubTypes.Type(value = DoubleTypedValue.class, name = "DOUBLE"),
-    @JsonSubTypes.Type(value = BooleanTypedValue.class, name = "BOOLEAN"),
-    @JsonSubTypes.Type(value = DateTypedValue.class, name = "DATE"),
-    @JsonSubTypes.Type(value = TimeTypedValue.class, name = "TIME"),
-    @JsonSubTypes.Type(value = TimestampTypedValue.class, name = "TIMESTAMP"),
-    @JsonSubTypes.Type(value = InstantTypedValue.class, name = "INSTANT"),
-    @JsonSubTypes.Type(value = LocalDateTypedValue.class, name = "LOCAL_DATE"),
-    @JsonSubTypes.Type(value = LocalTimeTypedValue.class, name = "LOCAL_TIME"),
-    @JsonSubTypes.Type(value = LocalDateTimeTypedValue.class, name = "LOCAL_DATE_TIME"),
-    @JsonSubTypes.Type(value = JsonTypedValue.class, name = "JSON"),
-    @JsonSubTypes.Type(value = BytesTypedValue.class, names = {"BYTES", "AVRO"}),
+  @JsonSubTypes.Type(value = StringTypedValue.class, name = "STRING"),
+  @JsonSubTypes.Type(value = ByteTypedValue.class, name = "INT8"),
+  @JsonSubTypes.Type(value = ShortTypedValue.class, name = "INT16"),
+  @JsonSubTypes.Type(value = IntegerTypedValue.class, name = "INT32"),
+  @JsonSubTypes.Type(value = LongTypedValue.class, name = "INT64"),
+  @JsonSubTypes.Type(value = FloatTypedValue.class, name = "FLOAT"),
+  @JsonSubTypes.Type(value = DoubleTypedValue.class, name = "DOUBLE"),
+  @JsonSubTypes.Type(value = BooleanTypedValue.class, name = "BOOLEAN"),
+  @JsonSubTypes.Type(value = DateTypedValue.class, name = "DATE"),
+  @JsonSubTypes.Type(value = TimeTypedValue.class, name = "TIME"),
+  @JsonSubTypes.Type(value = TimestampTypedValue.class, name = "TIMESTAMP"),
+  @JsonSubTypes.Type(value = InstantTypedValue.class, name = "INSTANT"),
+  @JsonSubTypes.Type(value = LocalDateTypedValue.class, name = "LOCAL_DATE"),
+  @JsonSubTypes.Type(value = LocalTimeTypedValue.class, name = "LOCAL_TIME"),
+  @JsonSubTypes.Type(value = LocalDateTimeTypedValue.class, name = "LOCAL_DATE_TIME"),
+  @JsonSubTypes.Type(value = JsonTypedValue.class, name = "JSON"),
+  @JsonSubTypes.Type(value = KeyValueTypedValue.class, name = "KEY_VALUE"),
+  @JsonSubTypes.Type(
+    value = BytesTypedValue.class,
+    names = {"BYTES", "AVRO"}
+  ),
 })
 abstract class TypedValue<T> {
   protected SchemaType schemaType;
@@ -80,57 +87,39 @@ abstract class TypedValue<T> {
   protected T value;
 }
 
-class StringTypedValue extends TypedValue<String> {
-}
+class StringTypedValue extends TypedValue<String> {}
 
-class ByteTypedValue extends TypedValue<Byte> {
-}
+class ByteTypedValue extends TypedValue<Byte> {}
 
-class ShortTypedValue extends TypedValue<Short> {
-}
+class ShortTypedValue extends TypedValue<Short> {}
 
-class IntegerTypedValue extends TypedValue<Integer> {
-}
+class IntegerTypedValue extends TypedValue<Integer> {}
 
-class LongTypedValue extends TypedValue<Long> {
-}
+class LongTypedValue extends TypedValue<Long> {}
 
-class FloatTypedValue extends TypedValue<Float> {
-}
+class FloatTypedValue extends TypedValue<Float> {}
 
-class DoubleTypedValue extends TypedValue<Double> {
-}
+class DoubleTypedValue extends TypedValue<Double> {}
 
-class BooleanTypedValue extends TypedValue<Boolean> {
-}
+class BooleanTypedValue extends TypedValue<Boolean> {}
 
-class DateTypedValue extends TypedValue<Date> {
-}
+class DateTypedValue extends TypedValue<Date> {}
 
-class TimeTypedValue extends TypedValue<Time> {
-}
+class TimeTypedValue extends TypedValue<Time> {}
 
-class TimestampTypedValue extends TypedValue<Timestamp> {
-}
+class TimestampTypedValue extends TypedValue<Timestamp> {}
 
-class InstantTypedValue extends TypedValue<Instant> {
-}
+class InstantTypedValue extends TypedValue<Instant> {}
 
-class LocalDateTypedValue extends TypedValue<LocalDate> {
-}
+class LocalDateTypedValue extends TypedValue<LocalDate> {}
 
-class LocalTimeTypedValue extends TypedValue<LocalTime> {
-}
+class LocalTimeTypedValue extends TypedValue<LocalTime> {}
 
-class LocalDateTimeTypedValue extends TypedValue<LocalDateTime> {
-}
+class LocalDateTimeTypedValue extends TypedValue<LocalDateTime> {}
 
+class JsonTypedValue extends TypedValue<JsonNode> {}
 
-class JsonTypedValue extends TypedValue<JsonNode> {
-}
-
-class BytesTypedValue extends TypedValue<byte[]> {
-}
+class BytesTypedValue extends TypedValue<byte[]> {}
 
 @Data
 @EqualsAndHashCode(callSuper = true)

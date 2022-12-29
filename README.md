@@ -81,7 +81,10 @@ For each message consumed from Pulsar, the Lambda function will be invoked with 
 ```
 
 Fields that have a `null` value may be omitted from the JSON payload.
-The Lambda function shall return a JSON with the same structure. The returned JSON will be used to send the response message to Pulsar. Non-null values of the response will override the default values of the response message. The `value` field is required. 
+The Lambda function shall return a JSON with the same structure.
+The returned JSON will be used to send the response message to Pulsar.
+Non-null values of the response will override the default values of the response message.
+If `value` is `null` in the response, no message will be sent to the destination topic.
 
 ### Value object
 

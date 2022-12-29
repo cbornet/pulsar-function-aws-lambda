@@ -22,11 +22,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.fail;
 
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -453,9 +456,8 @@ public class AWSLambdaFunctionTest {
                 KeyValueTypedValue kv = (KeyValueTypedValue) jsonRecord.getValue();
                 assertEquals(kv.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
 
-                InvokeResult result = new InvokeResult();
-                result.setPayload(request.getPayload());
-                result.setStatusCode(200);
+                InvokeResult result =
+                    new InvokeResult().withPayload(request.getPayload()).withStatusCode(200);
                 return CompletableFuture.completedFuture(result);
               } catch (Exception e) {
                 CompletableFuture<Object> failed = new CompletableFuture<>();
@@ -566,9 +568,8 @@ public class AWSLambdaFunctionTest {
 
                 byte[] output = mapper.writeValueAsBytes(outputRecord);
 
-                InvokeResult result = new InvokeResult();
-                result.setPayload(ByteBuffer.wrap(output));
-                result.setStatusCode(200);
+                InvokeResult result =
+                    new InvokeResult().withPayload(ByteBuffer.wrap(output)).withStatusCode(200);
                 return CompletableFuture.completedFuture(result);
               } catch (Exception e) {
                 CompletableFuture<Object> failed = new CompletableFuture<>();
@@ -615,6 +616,78 @@ public class AWSLambdaFunctionTest {
     assertEquals(outputRecord.getSchema(), Schema.STRING);
   }
 
+  @Test
+  void testNullReturn() throws Exception {
+    CompletableFuture<InvokeResult> resultFuture = new CompletableFuture<>();
+    InvokeResult result =
+        new InvokeResult()
+            .withStatusCode(200)
+            .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)));
+    resultFuture.complete(result);
+    doReturn(resultFuture).when(client).invokeAsync(any(InvokeRequest.class));
+    GenericRecord genericRecord =
+        AutoConsumeSchema.wrapPrimitiveObject(42, SchemaType.INT32, new byte[] {});
+    assertNull(processRecord(Schema.INT32, genericRecord));
+  }
+
+  @Test
+  void testInvalidReturn() throws Exception {
+    CompletableFuture<InvokeResult> resultFuture = new CompletableFuture<>();
+    InvokeResult result =
+        new InvokeResult()
+            .withStatusCode(200)
+            .withPayload(ByteBuffer.wrap("".getBytes(StandardCharsets.UTF_8)));
+    resultFuture.complete(result);
+    doReturn(resultFuture).when(client).invokeAsync(any(InvokeRequest.class));
+    GenericRecord genericRecord =
+        AutoConsumeSchema.wrapPrimitiveObject(42, SchemaType.INT32, new byte[] {});
+    try {
+      processRecord(Schema.INT32, genericRecord);
+      fail("Should have thrown exception");
+    } catch (JsonProcessingException e) {
+      // expected
+    }
+  }
+
+  @Test
+  void testLambdaException() throws Exception {
+    CompletableFuture<InvokeResult> resultFuture = new CompletableFuture<>();
+    InvokeResult result =
+        new InvokeResult()
+            .withStatusCode(200)
+            .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)))
+            .withFunctionError("exception occured");
+    resultFuture.complete(result);
+    doReturn(resultFuture).when(client).invokeAsync(any(InvokeRequest.class));
+    GenericRecord genericRecord =
+        AutoConsumeSchema.wrapPrimitiveObject(42, SchemaType.INT32, new byte[] {});
+    try {
+      processRecord(Schema.INT32, genericRecord);
+      fail("Should have thrown exception");
+    } catch (IOException e) {
+      // expected
+    }
+  }
+
+  @Test
+  void testLambdaInvalidStatusCode() throws Exception {
+    CompletableFuture<InvokeResult> resultFuture = new CompletableFuture<>();
+    InvokeResult result =
+        new InvokeResult()
+            .withStatusCode(400)
+            .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)));
+    resultFuture.complete(result);
+    doReturn(resultFuture).when(client).invokeAsync(any(InvokeRequest.class));
+    GenericRecord genericRecord =
+        AutoConsumeSchema.wrapPrimitiveObject(42, SchemaType.INT32, new byte[] {});
+    try {
+      processRecord(Schema.INT32, genericRecord);
+      fail("Should have thrown exception");
+    } catch (IOException e) {
+      // expected
+    }
+  }
+
   private Record<?> processRecord(Schema<?> schema, GenericRecord genericRecord) throws Exception {
     TestRecord<Object> record = TestRecord.builder().value(genericRecord).schema(schema).build();
     Map<String, Object> config = new HashMap<>();
@@ -637,9 +710,10 @@ public class AWSLambdaFunctionTest {
                 outputJsonRecord.setValue(outputValue);
 
                 byte[] reponseBody = mapper.writeValueAsBytes(outputJsonRecord);
-                InvokeResult result = new InvokeResult();
-                result.setPayload(ByteBuffer.wrap(reponseBody));
-                result.setStatusCode(200);
+                InvokeResult result =
+                    new InvokeResult()
+                        .withStatusCode(200)
+                        .withPayload(ByteBuffer.wrap(reponseBody));
                 return CompletableFuture.completedFuture(result);
               } catch (Exception e) {
                 CompletableFuture<Object> failed = new CompletableFuture<>();

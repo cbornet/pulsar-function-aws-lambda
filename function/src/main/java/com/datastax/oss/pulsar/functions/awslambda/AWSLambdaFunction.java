@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -97,7 +96,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
       Record<GenericObject> record = (Record<GenericObject>) context.getCurrentRecord();
       InvokeResult result = invoke(record);
 
-      if (result != null && result.getStatusCode() < 300 && result.getStatusCode() >= 200) {
+      if (result != null
+          && result.getStatusCode() < 300
+          && result.getStatusCode() >= 200
+          && result.getFunctionError() == null) {
         ByteBuffer payload = result.getPayload();
         byte[] arr = new byte[payload.remaining()];
         payload.get(arr);
@@ -119,7 +121,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         JsonRecord jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
 
         if (jsonRecord.getValue() == null) {
-          throw new IOException("Missing Lambda response value");
+          return null;
         }
 
         Schema outputSchema;

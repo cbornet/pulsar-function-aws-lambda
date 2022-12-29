@@ -234,16 +234,18 @@ public abstract class AbstractDockerTest {
             .subscriptionName(UUID.randomUUID().toString())
             .subscribe();
 
-    Producer producer = client.newProducer(schema).topic(inputTopic).create();
+    Producer<T> producer = client.newProducer(schema).topic(inputTopic).create();
 
-    TypedMessageBuilder producerMessage =
+    TypedMessageBuilder<T> producerMessage =
         producer.newMessage().value(value).property("prop-key", "prop-value");
     if (key != null) {
       producerMessage.key(key);
     }
     producerMessage.send();
+    producer.close();
 
     Message<GenericRecord> message = consumer.receive(30, TimeUnit.SECONDS);
+    consumer.close();
     assertNotNull(message);
     if (key != null) {
       assertEquals(message.getKey(), key);

@@ -39,7 +39,6 @@ public class AWSLambdaFunctionConfig implements Serializable {
   private static final long serialVersionUID = 1L;
 
   @FieldDoc(
-    required = false,
     defaultValue = "",
     help =
         "AWS Lambda end-point url. It can be found "
@@ -62,7 +61,6 @@ public class AWSLambdaFunctionConfig implements Serializable {
   private String lambdaFunctionName;
 
   @FieldDoc(
-    required = false,
     defaultValue = "",
     help =
         "Fully-Qualified class name of implementation of AwsCredentialProviderPlugin."
@@ -73,7 +71,6 @@ public class AWSLambdaFunctionConfig implements Serializable {
   private String awsCredentialPluginName = "";
 
   @FieldDoc(
-    required = false,
     defaultValue = "",
     sensitive = true,
     help = "json-parameters to initialize `AwsCredentialsProviderPlugin`"

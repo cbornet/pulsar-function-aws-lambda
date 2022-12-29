@@ -63,7 +63,6 @@ import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.util.Utf8;
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.api.ConsumerBuilder;
-import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.apache.pulsar.client.api.schema.GenericRecord;
@@ -74,6 +73,7 @@ import org.apache.pulsar.client.api.schema.SchemaBuilder;
 import org.apache.pulsar.client.impl.schema.AutoConsumeSchema;
 import org.apache.pulsar.client.impl.schema.KeyValueSchemaImpl;
 import org.apache.pulsar.common.schema.KeyValue;
+import org.apache.pulsar.common.schema.KeyValueEncodingType;
 import org.apache.pulsar.common.schema.SchemaInfo;
 import org.apache.pulsar.common.schema.SchemaType;
 import org.apache.pulsar.functions.api.Context;
@@ -420,11 +420,58 @@ public class AWSLambdaFunctionTest {
     KeyValueSchema<?, ?> kvSchema = (KeyValueSchema<?, ?>) outputRecord.getSchema();
     KeyValue<?, ?> kv = (KeyValue<?, ?>) outputRecord.getValue();
 
+    assertEquals(kvSchema.getKeyValueEncodingType(), KeyValueEncodingType.INLINE);
+
     assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.STRING);
     assertEquals(kv.getKey(), "key!");
 
     assertEquals(kvSchema.getValueSchema().getSchemaInfo().getType(), SchemaType.STRING);
     assertEquals(kv.getValue(), "value!");
+  }
+
+  @Test
+  void testKVPrimitivesSeparated() throws Exception {
+    Schema<KeyValue<String, String>> keyValueSchema =
+        KeyValueSchemaImpl.of(Schema.STRING, Schema.STRING, KeyValueEncodingType.SEPARATED);
+    KeyValue<String, String> keyValue = new KeyValue<>("key", "value");
+
+    doAnswer(
+            invocationOnMock -> {
+              try {
+                InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+                JsonRecord jsonRecord =
+                    mapper.readValue(request.getPayload().array(), JsonRecord.class);
+
+                assertEquals(jsonRecord.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
+
+                InvokeResult result = new InvokeResult();
+                result.setPayload(request.getPayload());
+                result.setStatusCode(200);
+                return CompletableFuture.completedFuture(result);
+              } catch (Exception e) {
+                CompletableFuture<Object> failed = new CompletableFuture<>();
+                failed.completeExceptionally(e);
+                return e;
+              }
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+    Record<?> outputRecord =
+        processRecord(
+            keyValueSchema,
+            AutoConsumeSchema.wrapPrimitiveObject(keyValue, SchemaType.KEY_VALUE, new byte[] {}));
+
+    assertEquals(outputRecord.getSchema().getSchemaInfo().getType(), SchemaType.KEY_VALUE);
+    KeyValueSchema<?, ?> kvSchema = (KeyValueSchema<?, ?>) outputRecord.getSchema();
+    KeyValue<?, ?> kv = (KeyValue<?, ?>) outputRecord.getValue();
+
+    assertEquals(kvSchema.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
+
+    assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.STRING);
+    assertEquals(kv.getKey(), "key");
+
+    assertEquals(kvSchema.getValueSchema().getSchemaInfo().getType(), SchemaType.STRING);
+    assertEquals(kv.getValue(), "value");
   }
 
   @Test
@@ -469,6 +516,94 @@ public class AWSLambdaFunctionTest {
     assertEquals(outputRecord.getSchema().getSchemaInfo().getType(), SchemaType.JSON);
     JsonNode value = (JsonNode) outputRecord.getValue();
     assertEquals(value.get("newFirstName").asText(), "Jane!");
+  }
+
+  @Test
+  void testRecordAttributes() throws Exception {
+    doAnswer(
+            invocationOnMock -> {
+              try {
+                InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+                JsonRecord jsonRecord =
+                    mapper.readValue(request.getPayload().array(), JsonRecord.class);
+
+                assertEquals(jsonRecord.getTopicName(), "my-topic");
+                assertEquals(jsonRecord.getKey(), "my-key");
+                assertEquals(jsonRecord.getDestinationTopic(), "my-destination-topic");
+                assertEquals(jsonRecord.getEventTime().longValue(), 100L);
+                assertEquals(jsonRecord.getProperties().size(), 1);
+                assertEquals(jsonRecord.getProperties().get("my-prop"), "my-prop-value");
+                assertEquals(jsonRecord.getPartitionId(), "my-partition-id");
+                assertEquals(jsonRecord.getPartitionIndex().intValue(), 100);
+                assertEquals(jsonRecord.getRecordSequence().longValue(), 100L);
+
+                Map<String, String> properties = new HashMap<>();
+                properties.put("new-prop", "new-prop-value");
+                JsonRecord outputRecord = new JsonRecord();
+                outputRecord.setKey("new-key");
+                outputRecord.setDestinationTopic("new-destination-topic");
+                outputRecord.setEventTime(200L);
+                outputRecord.setProperties(properties);
+                outputRecord.setTopicName("new-topic");
+                outputRecord.setRecordSequence(200L);
+                outputRecord.setPartitionId("new-partition-id");
+                outputRecord.setPartitionIndex(200);
+
+                StringTypedValue value = new StringTypedValue();
+                value.setSchemaType(SchemaType.STRING);
+                value.setValue("new-value");
+
+                outputRecord.setValue(value);
+
+                byte[] output = mapper.writeValueAsBytes(outputRecord);
+
+                InvokeResult result = new InvokeResult();
+                result.setPayload(ByteBuffer.wrap(output));
+                result.setStatusCode(200);
+                return CompletableFuture.completedFuture(result);
+              } catch (Exception e) {
+                CompletableFuture<Object> failed = new CompletableFuture<>();
+                failed.completeExceptionally(e);
+                return e;
+              }
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+
+    GenericRecord genericRecord =
+        AutoConsumeSchema.wrapPrimitiveObject(42, SchemaType.INT32, new byte[] {});
+    Map<String, String> properties = new HashMap<>();
+    properties.put("my-prop", "my-prop-value");
+    TestRecord<Object> record =
+        TestRecord.builder()
+            .value(genericRecord)
+            .schema(Schema.INT32)
+            .destinationTopic("my-destination-topic")
+            .eventTime(100L)
+            .properties(properties)
+            .key("my-key")
+            .topicName("my-topic")
+            .partitionId("my-partition-id")
+            .partitionIndex(100)
+            .recordSequence(100L)
+            .build();
+    Map<String, Object> config = new HashMap<>();
+
+    TestContext context = new TestContext(record, config);
+    function.initialize(context);
+    Record<?> outputRecord = function.process(genericRecord, context);
+
+    assertEquals(outputRecord.getKey().orElse(null), "new-key");
+    assertEquals(outputRecord.getDestinationTopic().orElse(null), "new-destination-topic");
+    assertEquals(outputRecord.getEventTime().orElse(0L).longValue(), 200L);
+    assertEquals(outputRecord.getProperties().size(), 1);
+    assertEquals(outputRecord.getProperties().get("new-prop"), "new-prop-value");
+    assertEquals(outputRecord.getTopicName().orElse(null), "new-topic");
+    assertEquals(outputRecord.getPartitionId().orElse(null), "new-partition-id");
+    assertEquals(outputRecord.getPartitionIndex().orElse(0).intValue(), 200);
+    assertEquals(outputRecord.getRecordSequence().orElse(0L).intValue(), 200L);
+    assertEquals(outputRecord.getValue(), "new-value");
+    assertEquals(outputRecord.getSchema(), Schema.STRING);
   }
 
   private Record<?> processRecord(Schema<?> schema, GenericRecord genericRecord) throws Exception {
@@ -518,6 +653,11 @@ public class AWSLambdaFunctionTest {
     private String destinationTopic;
     private Long eventTime;
     Map<String, String> properties;
+    private String partitionId;
+
+    private Integer partitionIndex;
+
+    private Long recordSequence;
 
     @Override
     public Optional<String> getKey() {
@@ -552,6 +692,21 @@ public class AWSLambdaFunctionTest {
     @Override
     public Map<String, String> getProperties() {
       return properties;
+    }
+
+    @Override
+    public Optional<String> getPartitionId() {
+      return Optional.ofNullable(partitionId);
+    }
+
+    @Override
+    public Optional<Integer> getPartitionIndex() {
+      return Optional.ofNullable(partitionIndex);
+    }
+
+    @Override
+    public Optional<Long> getRecordSequence() {
+      return Optional.ofNullable(recordSequence);
     }
   }
 
@@ -634,14 +789,12 @@ public class AWSLambdaFunctionTest {
     }
 
     @Override
-    public <O> TypedMessageBuilder<O> newOutputMessage(String topicName, Schema<O> schema)
-        throws PulsarClientException {
+    public <O> TypedMessageBuilder<O> newOutputMessage(String topicName, Schema<O> schema) {
       return null;
     }
 
     @Override
-    public <O> ConsumerBuilder<O> newConsumerBuilder(Schema<O> schema)
-        throws PulsarClientException {
+    public <O> ConsumerBuilder<O> newConsumerBuilder(Schema<O> schema) {
       return null;
     }
 

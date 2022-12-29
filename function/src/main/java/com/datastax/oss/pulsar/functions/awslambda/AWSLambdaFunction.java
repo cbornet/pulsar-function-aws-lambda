@@ -118,7 +118,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         JsonRecord jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
 
         if (jsonRecord.getValue() == null) {
-          throw new IllegalStateException("Missing Lambda response value");
+          throw new IOException("Missing Lambda response value");
         }
 
         Schema outputSchema;
@@ -158,6 +158,22 @@ public class AWSLambdaFunction extends AbstractAwsConnector
 
         if (jsonRecord.getProperties() != null) {
           builder.properties(jsonRecord.getProperties());
+        }
+
+        if (jsonRecord.getTopicName() != null) {
+          builder.topicName(jsonRecord.getTopicName());
+        }
+
+        if (jsonRecord.getPartitionId() != null) {
+          builder.partitionId(jsonRecord.getPartitionId());
+        }
+
+        if (jsonRecord.getPartitionIndex() != null) {
+          builder.partitionIndex(jsonRecord.getPartitionIndex());
+        }
+
+        if (jsonRecord.getRecordSequence() != null) {
+          builder.recordSequence(jsonRecord.getRecordSequence());
         }
 
         return builder.build();
@@ -392,7 +408,6 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         return Schema.LOCAL_DATE_TIME;
       case STRING:
         return Schema.STRING;
-      case PROTOBUF:
       case BYTES:
         return Schema.BYTES;
       default:

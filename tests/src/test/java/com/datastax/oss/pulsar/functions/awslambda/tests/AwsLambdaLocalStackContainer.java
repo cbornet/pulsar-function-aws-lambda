@@ -66,7 +66,6 @@ public class AwsLambdaLocalStackContainer implements AutoCloseable {
                 (f) -> {
                   String text = f.getUtf8String().trim();
                   log.info(text);
-                  System.out.println(text);
                 });
     localstackContainer.start();
   }

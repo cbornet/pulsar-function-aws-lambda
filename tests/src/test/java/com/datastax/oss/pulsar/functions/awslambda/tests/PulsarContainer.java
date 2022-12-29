@@ -61,7 +61,6 @@ public class PulsarContainer implements AutoCloseable {
                 (f) -> {
                   String text = f.getUtf8String().trim();
                   log.info(text);
-                  System.out.println(text);
                 });
     pulsarContainer.start();
   }

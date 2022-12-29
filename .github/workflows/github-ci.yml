@@ -26,7 +26,7 @@ jobs:
         run: mvn -B license:check
 
       - name: Build with Maven skipTests
-        run: mvn -B clean install -DskipTests
+        run: mvn -B clean install -DskipTests -Dspotbugs.skip -Dlicense.skip
 
       - name: Spotbugs check
         run: mvn -B spotbugs:check

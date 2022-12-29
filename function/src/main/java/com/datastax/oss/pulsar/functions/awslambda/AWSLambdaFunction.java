@@ -248,12 +248,6 @@ public class AWSLambdaFunction extends AbstractAwsConnector
       payload.setProperties(new HashMap<>(record.getProperties()));
     }
 
-    //    if (record.getSchema() instanceof KeyValueSchema) {
-    //      Schema<?> schema = record.getSchema();
-    //      payload.setKeyValueEncodingType(((KeyValueSchema<?, ?>)
-    // schema).getKeyValueEncodingType());
-    //    }
-
     return MAPPER.writeValueAsBytes(payload);
   }
 

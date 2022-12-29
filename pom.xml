@@ -237,6 +237,9 @@ limitations under the License.]]></inlineHeader>
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
+        <configuration>
+          <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+        </configuration>
         <executions>
           <execution>
             <phase>verify</phase>

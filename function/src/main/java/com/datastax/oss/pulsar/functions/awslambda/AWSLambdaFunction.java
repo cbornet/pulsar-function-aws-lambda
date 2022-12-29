@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.ByteArrayOutputStream;
@@ -73,8 +74,8 @@ public class AWSLambdaFunction extends AbstractAwsConnector
           .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
           .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
           .setSerializationInclusion(JsonInclude.Include.NON_NULL)
-          .registerModule(new JavaTimeModule())
-          .registerModule(new Jdk8Module());
+          .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+          .registerModule(new JavaTimeModule());
 
   private AWSLambdaAsync client;
   private AWSLambdaFunctionConfig config;
@@ -127,10 +128,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
           KeyValueTypedValue keyValue = (KeyValueTypedValue) jsonRecord.getValue();
           Schema<?> keyOutputSchema = getSchema(keyValue.getKey());
           Schema<?> valueOutputSchema = getSchema(keyValue.getValue());
-          if (jsonRecord.getKeyValueEncodingType() != null) {
+          if (keyValue.getKeyValueEncodingType() != null) {
             outputSchema =
                 Schema.KeyValue(
-                    keyOutputSchema, valueOutputSchema, jsonRecord.getKeyValueEncodingType());
+                    keyOutputSchema, valueOutputSchema, keyValue.getKeyValueEncodingType());
           } else {
             outputSchema = Schema.KeyValue(keyOutputSchema, valueOutputSchema);
           }
@@ -245,10 +246,11 @@ public class AWSLambdaFunction extends AbstractAwsConnector
       payload.setProperties(new HashMap<>(record.getProperties()));
     }
 
-    if (record.getSchema() instanceof KeyValueSchema) {
-      Schema<?> schema = record.getSchema();
-      payload.setKeyValueEncodingType(((KeyValueSchema<?, ?>) schema).getKeyValueEncodingType());
-    }
+    //    if (record.getSchema() instanceof KeyValueSchema) {
+    //      Schema<?> schema = record.getSchema();
+    //      payload.setKeyValueEncodingType(((KeyValueSchema<?, ?>)
+    // schema).getKeyValueEncodingType());
+    //    }
 
     return MAPPER.writeValueAsBytes(payload);
   }
@@ -348,6 +350,8 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         TypedValue<?> valueTypedValue = getTypedValue(keyValueSchema.getValueSchema(), kvValue);
         ((KeyValueTypedValue) typedValue).setKey(keyTypedValue);
         ((KeyValueTypedValue) typedValue).setValue(valueTypedValue);
+        ((KeyValueTypedValue) typedValue)
+            .setKeyValueEncodingType(keyValueSchema.getKeyValueEncodingType());
         break;
       default:
         throw new IllegalStateException("Unexpected value: " + schema.getSchemaInfo().getType());

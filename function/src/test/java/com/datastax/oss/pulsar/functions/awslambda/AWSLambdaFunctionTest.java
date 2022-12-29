@@ -26,8 +26,11 @@ import static org.testng.Assert.assertNotNull;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.model.InvokeResult;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.ByteArrayOutputStream;
@@ -88,7 +91,12 @@ import org.testng.annotations.Test;
 public class AWSLambdaFunctionTest {
 
   private static final ObjectMapper mapper =
-      new ObjectMapper().registerModule(new JavaTimeModule());
+      new ObjectMapper()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
+          .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+          .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+          .registerModule(new JavaTimeModule());
 
   AWSLambdaFunction function;
   AWSLambdaAsync client;
@@ -442,7 +450,8 @@ public class AWSLambdaFunctionTest {
                 JsonRecord jsonRecord =
                     mapper.readValue(request.getPayload().array(), JsonRecord.class);
 
-                assertEquals(jsonRecord.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
+                KeyValueTypedValue kv = (KeyValueTypedValue) jsonRecord.getValue();
+                assertEquals(kv.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
 
                 InvokeResult result = new InvokeResult();
                 result.setPayload(request.getPayload());

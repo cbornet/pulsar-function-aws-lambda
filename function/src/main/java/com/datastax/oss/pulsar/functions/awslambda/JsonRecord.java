@@ -48,7 +48,6 @@ public class JsonRecord {
   private String destinationTopic;
   private Long eventTime;
   private Map<String, String> properties;
-  private KeyValueEncodingType keyValueEncodingType;
 }
 
 @Data
@@ -124,5 +123,6 @@ class BytesTypedValue extends TypedValue<byte[]> {}
 @Data
 @EqualsAndHashCode(callSuper = true)
 class KeyValueTypedValue extends TypedValue<TypedValue<?>> {
+  private KeyValueEncodingType keyValueEncodingType;
   private TypedValue<?> key;
 }

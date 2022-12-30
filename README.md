@@ -5,21 +5,21 @@ The intent is to provide an easy way to integrate with the AWS ecosystem to proc
 It also provides a way to implement functions in languages not supported by Pulsar Functions but supported by AWS Lambda.
 
 The function requires Pulsar 2.11+ or Luna Streaming 2.10+ to run.
+
 The function doesn't support PROTOBUF and PROTOBUF_NATIVE messages at the moment.
 
 ## Configuration
 
 The Function must be configured with the following parameters:
 
-| Name | Type|Required | Default | Description
-|------|----------|----------|---------|-------------|
-| `awsEndpoint` |String| false | " " (empty string) | AWS Lambda end-point URL. It can be found at [here](https://docs.aws.amazon.com/general/latest/gr/lambda-service.html). |
-| `awsRegion` | String| true | " " (empty string) | Supported AWS region. For example, us-west-1, us-west-2. |
-| `awsCredentialPluginName` | String|false | " " (empty string) | Fully-qualified class name of implementation of `AwsCredentialProviderPlugin`. |
-| `awsCredentialPluginParam` | String|true | " " (empty string) | JSON parameter to initialize `AwsCredentialsProviderPlugin`. |
-| `lambdaFunctionName` | String|true | " " (empty string) | The Lambda function that should be invoked by the messages. |
-| `synchronousInvocation` | Boolean|true | true | `true` means invoking a Lambda function synchronously. <br>`false` means invoking a Lambda function asynchronously. |
-
+| Name                       | Type    | Required | Default           | Description                                                                                                                                                                                                                                                                                                                     |
+|----------------------------|---------|----------|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `awsEndpoint`              | String  | false    | "" (empty string) | The AWS Lambda endpoint URL. If left blank, the default AWS Lambda endpoint URL will be used.                                                                                                                                                                                                                                   |
+| `awsRegion`                | String  | false    | "" (empty string) | The AWS region (eg. `us-west-1`, `us-west-2`). If left blank, the region will be parsed from the `lambdaFunctionName` if it's in the full ARN format.                                                                                                                                                                           |
+| `awsCredentialPluginName`  | String  | false    | "" (empty string) | Fully-qualified class name of implementation of `AwsCredentialProviderPlugin`.                                                                                                                                                                                                                                                  |
+| `awsCredentialPluginParam` | String  | true     | "" (empty string) | JSON parameter to initialize `AwsCredentialsProviderPlugin`.                                                                                                                                                                                                                                                                    |
+| `lambdaFunctionName`       | String  | true     | "" (empty string) | The name of the Lambda function, version, or alias. <br>**Name formats**<ul><li>**Function name** - `my-function` (name-only), `my-function:v1` (with alias).</li><li>**Function ARN** - `arn:aws:lambda:us-west-2:123456789012:function:my-function`.</li><li>**Partial ARN** - `123456789012:function:my-function`.</li></ul> |
+| `synchronousInvocation`    | Boolean | true     | true              | `true` means invoking a Lambda function synchronously. <br>`false` means invoking a Lambda function asynchronously.                                                                                                                                                                                                             |
 
 ## Deployment
 

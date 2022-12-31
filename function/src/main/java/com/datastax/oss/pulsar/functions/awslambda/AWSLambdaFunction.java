@@ -15,6 +15,7 @@
  */
 package com.datastax.oss.pulsar.functions.awslambda;
 
+import com.amazonaws.arn.Arn;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.lambda.AWSLambdaAsync;
 import com.amazonaws.services.lambda.AWSLambdaAsyncClient;
@@ -424,12 +425,22 @@ public class AWSLambdaFunction extends AbstractAwsConnector
 
     AWSLambdaAsyncClientBuilder builder = AWSLambdaAsyncClient.asyncBuilder();
 
+    String region = config.getAwsRegion();
+    if (region.isEmpty()) {
+      try {
+        Arn arn = Arn.fromString(config.getLambdaFunctionName());
+        region = arn.getRegion();
+      } catch (IllegalArgumentException e) {
+        if (logger.isDebugEnabled()) {
+          logger.debug("Region not provided and lambdaFunctionName cannot be parsed to an ARN", e);
+        }
+      }
+    }
+
     if (!config.getAwsEndpoint().isEmpty()) {
-      builder.setEndpointConfiguration(
-          new AwsClientBuilder.EndpointConfiguration(
-              config.getAwsEndpoint(), config.getAwsRegion()));
-    } else if (!config.getAwsRegion().isEmpty()) {
-      builder.setRegion(config.getAwsRegion());
+      builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(config.getAwsEndpoint(), region));
+    } else if (!region.isEmpty()) {
+      builder.setRegion(region);
     }
     builder.setCredentials(credentialsProvider.getCredentialProvider());
     return builder.build();

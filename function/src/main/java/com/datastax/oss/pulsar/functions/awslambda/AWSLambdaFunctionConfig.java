@@ -41,22 +41,25 @@ public class AWSLambdaFunctionConfig implements Serializable {
   @FieldDoc(
     defaultValue = "",
     help =
-        "AWS Lambda end-point url. It can be found "
-            + "at https://docs.aws.amazon.com/general/latest/gr/rande.html"
+        "The AWS Lambda endpoint URL. If left blank, the default AWS Lambda endpoint URL will be used."
   )
   private String awsEndpoint = "";
 
   @FieldDoc(
     required = true,
     defaultValue = "",
-    help = "Appropriate aws region. E.g. us-west-1, us-west-2"
+    help = "The AWS region (eg. us-west-1, us-west-2). If left blank, the region will be parsed from the lambdaFunctionName if it's in the full ARN format."
   )
   private String awsRegion;
 
   @FieldDoc(
     required = true,
     defaultValue = "",
-    help = "The lambda function name should be invoked."
+    help = "The name of the Lambda function, version, or alias.\n"
+        + "*Name formats*\n"
+        + "Function name - my-function (name-only), my-function:v1 (with alias).\n"
+        + "Function ARN - arn:aws:lambda:us-west-2:123456789012:function:my-function.\n"
+        + "Partial ARN - 123456789012:function:my-function."
   )
   private String lambdaFunctionName;
 

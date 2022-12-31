@@ -118,6 +118,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
                 record);
           }
         }
+
         JsonRecord jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
 
         if (jsonRecord.getValue() == null) {
@@ -128,8 +129,16 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         Object outputValue;
         if (SchemaType.KEY_VALUE.equals(jsonRecord.getValue().getSchemaType())) {
           KeyValueTypedValue keyValue = (KeyValueTypedValue) jsonRecord.getValue();
-          Schema<?> keyOutputSchema = getSchema(keyValue.getKey());
-          Schema<?> valueOutputSchema = getSchema(keyValue.getValue());
+          Schema<?> defaultKeySchema = null;
+          Schema<?> defaultValueSchema = null;
+          if (record.getSchema() instanceof KeyValueSchema) {
+            KeyValueSchema<?, ?> schema =
+                ((KeyValueSchema<?, ?>) context.getCurrentRecord().getSchema());
+            defaultKeySchema = schema.getKeySchema();
+            defaultValueSchema = schema.getValueSchema();
+          }
+          Schema<?> keyOutputSchema = getSchema(keyValue.getKey(), defaultKeySchema);
+          Schema<?> valueOutputSchema = getSchema(keyValue.getValue(), defaultValueSchema);
           if (keyValue.getKeyValueEncodingType() != null) {
             outputSchema =
                 Schema.KeyValue(
@@ -140,7 +149,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
           outputValue =
               new KeyValue<>(keyValue.getKey().getValue(), keyValue.getValue().getValue());
         } else {
-          outputSchema = getSchema(jsonRecord.getValue());
+          outputSchema = getSchema(jsonRecord.getValue(), record.getSchema());
           outputValue = jsonRecord.getValue().getValue();
         }
 
@@ -366,17 +375,28 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     return oo.toByteArray();
   }
 
-  private Schema<?> getSchema(TypedValue<?> typedValue) throws IOException {
+  private Schema<?> getSchema(TypedValue<?> typedValue, Schema<?> defaultSchema)
+      throws IOException {
     if (typedValue.getSchemaType() == null) {
       throw new IOException("Missing Lambda response schema type");
     }
     switch (typedValue.getSchemaType()) {
       case AVRO:
         org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
+        if (typedValue.getSchema() == null
+            && defaultSchema != null
+            && SchemaType.AVRO.equals(defaultSchema.getSchemaInfo().getType())) {
+          return defaultSchema;
+        }
         org.apache.avro.Schema schema =
             parser.parse(new String(typedValue.getSchema(), StandardCharsets.UTF_8));
         return Schema.NATIVE_AVRO(schema);
       case JSON:
+        if (typedValue.getSchema() == null
+            && defaultSchema != null
+            && SchemaType.JSON.equals(defaultSchema.getSchemaInfo().getType())) {
+          return defaultSchema;
+        }
         return new JsonNodeSchema(typedValue.getSchema());
       case INT8:
         return Schema.INT8;

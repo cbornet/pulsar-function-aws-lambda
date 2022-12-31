@@ -212,17 +212,7 @@ public class AWSLambdaFunctionTest {
     newRecord.put("new" + fieldName, read.get(fieldName) + "!");
 
     // Serialize Avro
-    GenericDatumWriter<org.apache.avro.generic.GenericRecord> writer =
-        new GenericDatumWriter<>(newSchema);
-    ByteArrayOutputStream oo = new ByteArrayOutputStream();
-    BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(oo, null);
-    writer.write(newRecord, encoder);
-
-    BytesTypedValue outputValue = new BytesTypedValue();
-    outputValue.setValue(oo.toByteArray());
-    outputValue.setSchema(newSchema.toString().getBytes(StandardCharsets.UTF_8));
-    outputValue.setSchemaType(SchemaType.AVRO);
-    return outputValue;
+    return getTypedValueFromAvro(newSchema, newRecord);
   }
 
   private static GenericData.Record getRecord(Schema<?> schema, byte[] value) throws IOException {
@@ -527,6 +517,162 @@ public class AWSLambdaFunctionTest {
     assertEquals(outputRecord.getSchema().getSchemaInfo().getType(), SchemaType.JSON);
     JsonNode value = (JsonNode) outputRecord.getValue();
     assertEquals(value.get("newFirstName").asText(), "Jane!");
+  }
+
+  @Test
+  void testAvroWithoutResultSchema() throws Exception {
+    RecordSchemaBuilder recordSchemaBuilder = SchemaBuilder.record("record");
+    recordSchemaBuilder.field("firstName").type(SchemaType.STRING);
+
+    SchemaInfo schemaInfo = recordSchemaBuilder.build(SchemaType.AVRO);
+    GenericSchema<GenericRecord> genericSchema = Schema.generic(schemaInfo);
+
+    GenericRecord genericRecord = genericSchema.newRecordBuilder().set("firstName", "Jane").build();
+
+    setClientHandler(
+        input -> {
+          try {
+            org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
+            org.apache.avro.Schema avroSchema =
+                parser.parse(new String(input.getSchema(), StandardCharsets.UTF_8));
+            GenericData.Record record = new GenericData.Record(avroSchema);
+            record.put("firstName", "John");
+
+            return getTypedValueFromAvro(avroSchema, record);
+
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
+    Record<?> outputRecord = processRecord(genericSchema, genericRecord);
+
+    assertEquals(outputRecord.getSchema().getSchemaInfo().getType(), SchemaType.AVRO);
+    GenericData.Record read = getRecord(outputRecord.getSchema(), (byte[]) outputRecord.getValue());
+    assertEquals(read.getSchema().getFields().size(), 1);
+    assertEquals(read.get("firstName"), new Utf8("John"));
+  }
+
+  @Test
+  void testJsonWithoutResultSchema() throws Exception {
+    RecordSchemaBuilder recordSchemaBuilder = SchemaBuilder.record("record");
+    recordSchemaBuilder.field("firstName").type(SchemaType.STRING);
+
+    SchemaInfo schemaInfo = recordSchemaBuilder.build(SchemaType.JSON);
+    GenericSchema<GenericRecord> genericSchema = Schema.generic(schemaInfo);
+
+    GenericRecord genericRecord = genericSchema.newRecordBuilder().set("firstName", "Jane").build();
+
+    setClientHandler(
+        input -> {
+          JsonTypedValue output = new JsonTypedValue();
+          ObjectNode jsonNode = mapper.createObjectNode();
+          jsonNode.put("firstName", "John");
+          output.setSchemaType(SchemaType.JSON);
+          output.setValue(jsonNode);
+          return output;
+        });
+    Record<?> outputRecord = processRecord(genericSchema, genericRecord);
+
+    assertEquals(outputRecord.getSchema().getSchemaInfo().getType(), SchemaType.JSON);
+    JsonNode value = (JsonNode) outputRecord.getValue();
+    assertEquals(
+        outputRecord.getSchema().getSchemaInfo().getSchema(),
+        genericSchema.getSchemaInfo().getSchema());
+    assertEquals(value.get("firstName").asText(), "John");
+  }
+
+  @Test
+  void testKVWithoutResultSchema() throws Exception {
+    RecordSchemaBuilder keySchemaBuilder = SchemaBuilder.record("keyRecord");
+    keySchemaBuilder.field("keyField").type(SchemaType.STRING);
+    GenericSchema<GenericRecord> keySchema =
+        Schema.generic(keySchemaBuilder.build(SchemaType.JSON));
+    GenericRecord keyRecord = keySchema.newRecordBuilder().set("keyField", "keyValue").build();
+
+    RecordSchemaBuilder valueSchemaBuilder = SchemaBuilder.record("valueRecord");
+    valueSchemaBuilder.field("valueField").type(SchemaType.STRING);
+    GenericSchema<GenericRecord> valueSchema =
+        Schema.generic(valueSchemaBuilder.build(SchemaType.JSON));
+    GenericRecord valueRecord =
+        valueSchema.newRecordBuilder().set("valueField", "valueValue").build();
+
+    Schema<KeyValue<GenericRecord, GenericRecord>> keyValueSchema =
+        KeyValueSchemaImpl.of(keySchema, valueSchema);
+    KeyValue<GenericRecord, GenericRecord> keyValue = new KeyValue<>(keyRecord, valueRecord);
+
+    doAnswer(
+            invocationOnMock -> {
+              try {
+                String json =
+                    (""
+                            + "{"
+                            + "  'value': {"
+                            + "    'schemaType': 'KEY_VALUE',"
+                            + "    'key': {"
+                            + "      'schemaType': 'JSON',"
+                            + "      'value': {"
+                            + "        'keyField': 'newKeyValue'"
+                            + "      }"
+                            + "    },"
+                            + "    'value': {"
+                            + "      'schemaType': 'JSON',"
+                            + "      'value': {"
+                            + "        'valueField': 'newValueValue'"
+                            + "      }"
+                            + "    }"
+                            + "  }"
+                            + "}")
+                        .replace("'", "\"");
+                JsonRecord outputJsonRecord = mapper.readValue(json, JsonRecord.class);
+                byte[] reponseBody = mapper.writeValueAsBytes(outputJsonRecord);
+                InvokeResult result =
+                    new InvokeResult()
+                        .withStatusCode(200)
+                        .withPayload(ByteBuffer.wrap(reponseBody));
+                return CompletableFuture.completedFuture(result);
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+
+    Record<?> outputRecord =
+        processRecord(
+            keyValueSchema,
+            AutoConsumeSchema.wrapPrimitiveObject(keyValue, SchemaType.KEY_VALUE, new byte[] {}));
+
+    KeyValueSchema<?, ?> kvSchema = (KeyValueSchema<?, ?>) outputRecord.getSchema();
+    KeyValue<?, ?> kv = (KeyValue<?, ?>) outputRecord.getValue();
+
+    assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.JSON);
+    assertEquals(
+        kvSchema.getKeySchema().getSchemaInfo().getSchema(), keySchema.getSchemaInfo().getSchema());
+    JsonNode key = (JsonNode) kv.getKey();
+    assertEquals(key.get("keyField").asText(), "newKeyValue");
+
+    assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.JSON);
+    assertEquals(
+        kvSchema.getValueSchema().getSchemaInfo().getSchema(),
+        valueSchema.getSchemaInfo().getSchema());
+    JsonNode value = (JsonNode) kv.getValue();
+    assertEquals(value.get("valueField").asText(), "newValueValue");
+  }
+
+  private static BytesTypedValue getTypedValueFromAvro(
+      org.apache.avro.Schema avroSchema, GenericData.Record record) throws IOException {
+    // Serialize Avro
+    GenericDatumWriter<org.apache.avro.generic.GenericRecord> writer =
+        new GenericDatumWriter<>(avroSchema);
+    ByteArrayOutputStream oo = new ByteArrayOutputStream();
+    BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(oo, null);
+    writer.write(record, encoder);
+
+    BytesTypedValue outputValue = new BytesTypedValue();
+    outputValue.setValue(oo.toByteArray());
+    outputValue.setSchema(avroSchema.toString().getBytes(StandardCharsets.UTF_8));
+    outputValue.setSchemaType(SchemaType.AVRO);
+    return outputValue;
   }
 
   @Test

@@ -129,6 +129,7 @@ Here is an example of a Lambda payload with an AVRO value
   }
 }
 ```
+If the `schema` field is not present in the response and the both the request and the response schema type is AVRO, then the request schema will be used. This can be used to reduce the response payload size when the schema doesn't change.
 
 #### JSON type
 
@@ -146,6 +147,7 @@ The native AVRO schema is also sent in the payload as a Base64 binary string.
   }
 }
 ```
+If the `schema` field is not present in the response and the both the request and the response schema type is JSON, then the request schema will be used. This can be used to reduce the response payload size when the schema doesn't change.
 
 #### KeyValue type
 

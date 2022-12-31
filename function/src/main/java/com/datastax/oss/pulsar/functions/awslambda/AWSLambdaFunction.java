@@ -66,8 +66,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     implements Function<GenericObject, Record<GenericObject>> {
 
   private static final long DEFAULT_INVOKE_TIMEOUT_MS = 5 * 60 * 1000L;
-  private static final int MAX_SYNC_PAYLOAD_SIZE_BYTES = (6 * 1024 * 1024);
-  private static final int MAX_ASYNC_PAYLOAD_SIZE_BYTES = (256 * 1024);
+  private static final int MAX_PAYLOAD_SIZE_BYTES = (6 * 1024 * 1024);
 
   private static final ObjectMapper MAPPER =
       new ObjectMapper()
@@ -106,18 +105,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
         payload.get(arr);
 
         if (logger.isDebugEnabled()) {
-          if (config.isSynchronousInvocation()) {
-            logger.debug(
-                "lambda function {} invocation successful with message {} " + "and response {}",
-                config.getLambdaFunctionName(),
-                record,
-                result);
-          } else {
-            logger.debug(
-                "lambda function {} invocation successful with message {}",
-                config.getLambdaFunctionName(),
-                record);
-          }
+          logger.debug(
+              "lambda function {} invocation successful with message {}",
+              config.getLambdaFunctionName(),
+              record);
         }
         JsonRecord jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
 
@@ -198,14 +189,12 @@ public class AWSLambdaFunction extends AbstractAwsConnector
 
   public InvokeResult invoke(Record<GenericObject> record)
       throws IOException, ExecutionException, InterruptedException, TimeoutException {
-    InvocationType type =
-        config.isSynchronousInvocation() ? InvocationType.RequestResponse : InvocationType.Event;
 
     byte[] payload = convertToLambdaPayload(record);
 
     InvokeRequest request =
         new InvokeRequest()
-            .withInvocationType(type)
+            .withInvocationType(InvocationType.RequestResponse)
             .withFunctionName(config.getLambdaFunctionName())
             .withPayload(ByteBuffer.wrap(payload));
 
@@ -213,16 +202,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     try {
       return futureResult.get(DEFAULT_INVOKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
     } catch (RequestTooLargeException e) {
-      if (config.isSynchronousInvocation() && payload.length > MAX_SYNC_PAYLOAD_SIZE_BYTES) {
+      if (payload.length > MAX_PAYLOAD_SIZE_BYTES) {
         logger.error(
             "record payload size {} exceeds the max payload "
                 + "size for synchronous lambda function invocation.",
-            payload.length);
-      } else if (!config.isSynchronousInvocation()
-          && payload.length > MAX_ASYNC_PAYLOAD_SIZE_BYTES) {
-        logger.error(
-            "record payload size {} exceeds the max payload "
-                + "size for asynchronous lambda function invocation.",
             payload.length);
       }
       throw e;
@@ -438,7 +421,8 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     }
 
     if (!config.getAwsEndpoint().isEmpty()) {
-      builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(config.getAwsEndpoint(), region));
+      builder.setEndpointConfiguration(
+          new AwsClientBuilder.EndpointConfiguration(config.getAwsEndpoint(), region));
     } else if (!region.isEmpty()) {
       builder.setRegion(region);
     }

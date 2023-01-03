@@ -124,7 +124,7 @@ public class AWSLambdaFunctionTest {
     setClientHandler(
         input -> {
           try {
-            return updateAvro((BytesTypedValue) input, "firstName");
+            return updateAvro((BytesJsonRecord) input, "firstName");
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
@@ -159,10 +159,11 @@ public class AWSLambdaFunctionTest {
     setClientHandler(
         input -> {
           try {
-            KeyValueTypedValue kv = (KeyValueTypedValue) input;
-            BytesTypedValue keyField = updateAvro((BytesTypedValue) kv.getKey(), "keyField");
-            BytesTypedValue valueField = updateAvro((BytesTypedValue) kv.getValue(), "valueField");
-            KeyValueTypedValue output = new KeyValueTypedValue();
+            KeyValueJsonRecord<?, ?> kv = (KeyValueJsonRecord<?, ?>) input;
+            BytesJsonRecord keyField = updateAvro((BytesJsonRecord) kv.getKey(), "keyField");
+            BytesJsonRecord valueField = updateAvro((BytesJsonRecord) kv.getValue(), "valueField");
+            KeyValueJsonRecord<BytesJsonRecord, BytesJsonRecord> output =
+                new KeyValueJsonRecord<>();
             output.setKey(keyField);
             output.setValue(valueField);
             output.setSchemaType(SchemaType.KEY_VALUE);
@@ -191,7 +192,7 @@ public class AWSLambdaFunctionTest {
     assertEquals(readValue.get("newvalueField"), new Utf8("valueValue!"));
   }
 
-  private static BytesTypedValue updateAvro(BytesTypedValue value, String fieldName)
+  private static BytesJsonRecord updateAvro(BytesJsonRecord value, String fieldName)
       throws IOException {
     assertEquals(value.getSchemaType(), SchemaType.AVRO);
     org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
@@ -218,7 +219,7 @@ public class AWSLambdaFunctionTest {
     BinaryEncoder encoder = EncoderFactory.get().directBinaryEncoder(oo, null);
     writer.write(newRecord, encoder);
 
-    BytesTypedValue outputValue = new BytesTypedValue();
+    BytesJsonRecord outputValue = new BytesJsonRecord();
     outputValue.setValue(oo.toByteArray());
     outputValue.setSchema(newSchema.toString().getBytes(StandardCharsets.UTF_8));
     outputValue.setSchemaType(SchemaType.AVRO);
@@ -240,7 +241,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.BYTES,
         Schema.BYTES,
-        new BytesTypedValue(),
+        new BytesJsonRecord(),
         (Function<byte[], byte[]>) b -> new byte[] {(byte) (b[0] + 1)},
         new byte[] {42},
         new byte[] {43}
@@ -248,7 +249,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.STRING,
         Schema.STRING,
-        new StringTypedValue(),
+        new StringJsonRecord(),
         (Function<String, String>) s -> s + "!",
         "test",
         "test!"
@@ -256,7 +257,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.INT8,
         Schema.INT8,
-        new ByteTypedValue(),
+        new ByteJsonRecord(),
         (Function<Byte, Byte>) b -> (byte) (b + 1),
         (byte) 42,
         (byte) 43
@@ -264,7 +265,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.INT16,
         Schema.INT16,
-        new ShortTypedValue(),
+        new ShortJsonRecord(),
         (Function<Short, Short>) s -> (short) (s + 1),
         (short) 42,
         (short) 43
@@ -272,7 +273,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.INT32,
         Schema.INT32,
-        new IntegerTypedValue(),
+        new IntegerJsonRecord(),
         (Function<Integer, Integer>) i -> i + 1,
         42,
         43
@@ -280,7 +281,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.INT64,
         Schema.INT64,
-        new LongTypedValue(),
+        new LongJsonRecord(),
         (Function<Long, Long>) l -> l + 1,
         42L,
         43L
@@ -288,7 +289,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.FLOAT,
         Schema.FLOAT,
-        new FloatTypedValue(),
+        new FloatJsonRecord(),
         (Function<Float, Float>) f -> f + 1,
         42F,
         43F
@@ -296,7 +297,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.DOUBLE,
         Schema.DOUBLE,
-        new DoubleTypedValue(),
+        new DoubleJsonRecord(),
         (Function<Double, Double>) d -> d + 1,
         42D,
         43D
@@ -304,7 +305,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.BOOLEAN,
         Schema.BOOL,
-        new BooleanTypedValue(),
+        new BooleanJsonRecord(),
         (Function<Boolean, Boolean>) b -> !b,
         true,
         false
@@ -312,7 +313,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.DATE,
         Schema.DATE,
-        new DateTypedValue(),
+        new DateJsonRecord(),
         (Function<Date, Date>) d -> new Date(d.getTime() + 100),
         new Date(100),
         new Date(200)
@@ -320,7 +321,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.TIME,
         Schema.TIME,
-        new TimeTypedValue(),
+        new TimeJsonRecord(),
         (Function<Time, Time>) t -> new Time(t.getTime() + 100000),
         new Time(100000),
         new Time(200000)
@@ -328,7 +329,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.TIMESTAMP,
         Schema.TIMESTAMP,
-        new TimestampTypedValue(),
+        new TimestampJsonRecord(),
         (Function<Timestamp, Timestamp>) t -> new Timestamp(t.getTime() + 100000),
         new Timestamp(100000),
         new Timestamp(200000)
@@ -336,7 +337,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.INSTANT,
         Schema.INSTANT,
-        new InstantTypedValue(),
+        new InstantJsonRecord(),
         (Function<Instant, Instant>) i -> i.plus(100, ChronoUnit.MILLIS),
         Instant.ofEpochMilli(100),
         Instant.ofEpochMilli(200)
@@ -344,7 +345,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.LOCAL_DATE,
         Schema.LOCAL_DATE,
-        new LocalDateTypedValue(),
+        new LocalDateJsonRecord(),
         (Function<LocalDate, LocalDate>) d -> d.plus(100, ChronoUnit.DAYS),
         LocalDate.ofEpochDay(100),
         LocalDate.ofEpochDay(200)
@@ -352,7 +353,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.LOCAL_TIME,
         Schema.LOCAL_TIME,
-        new LocalTimeTypedValue(),
+        new LocalTimeJsonRecord(),
         (Function<LocalTime, LocalTime>) t -> t.plus(100, ChronoUnit.SECONDS),
         LocalTime.ofSecondOfDay(100),
         LocalTime.ofSecondOfDay(200)
@@ -360,7 +361,7 @@ public class AWSLambdaFunctionTest {
       {
         SchemaType.LOCAL_DATE_TIME,
         Schema.LOCAL_DATE_TIME,
-        new LocalDateTimeTypedValue(),
+        new LocalDateTimeJsonRecord(),
         (Function<LocalDateTime, LocalDateTime>) t -> t.plus(100, ChronoUnit.SECONDS),
         LocalDateTime.ofEpochSecond(100, 0, ZoneOffset.UTC),
         LocalDateTime.ofEpochSecond(200, 0, ZoneOffset.UTC)
@@ -372,7 +373,7 @@ public class AWSLambdaFunctionTest {
   void testPrimitives(
       SchemaType schemaType,
       Schema<Object> schema,
-      TypedValue<Object> outputValue,
+      JsonRecord<String, Object> outputValue,
       Function<Object, Object> fromStringFunc,
       Object number,
       Object expected)
@@ -405,17 +406,18 @@ public class AWSLambdaFunctionTest {
 
     setClientHandler(
         input -> {
-          KeyValueTypedValue kv = (KeyValueTypedValue) input;
+          KeyValueJsonRecord<?, ?> kv = (KeyValueJsonRecord<?, ?>) input;
           assertEquals(kv.getKey().getSchemaType(), SchemaType.STRING);
           assertEquals(kv.getValue().getSchemaType(), SchemaType.STRING);
-          String newKey = ((StringTypedValue) kv.getKey()).getValue() + "!";
-          String newValue = ((StringTypedValue) kv.getValue()).getValue() + "!";
-          KeyValueTypedValue output = new KeyValueTypedValue();
-          StringTypedValue keyField = new StringTypedValue();
+          String newKey = kv.getKey().getValue() + "!";
+          String newValue = kv.getValue().getValue() + "!";
+          KeyValueJsonRecord<StringJsonRecord, StringJsonRecord> output =
+              new KeyValueJsonRecord<>();
+          StringJsonRecord keyField = new StringJsonRecord();
           keyField.setValue(newKey);
           keyField.setSchemaType(SchemaType.STRING);
           output.setKey(keyField);
-          StringTypedValue valueField = new StringTypedValue();
+          StringJsonRecord valueField = new StringJsonRecord();
           valueField.setValue(newValue);
           valueField.setSchemaType(SchemaType.STRING);
           output.setValue(valueField);
@@ -450,10 +452,10 @@ public class AWSLambdaFunctionTest {
             invocationOnMock -> {
               try {
                 InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
-                JsonRecord jsonRecord =
+                JsonRecord<?, ?> jsonRecord =
                     mapper.readValue(request.getPayload().array(), JsonRecord.class);
 
-                KeyValueTypedValue kv = (KeyValueTypedValue) jsonRecord.getValue();
+                KeyValueJsonRecord<?, ?> kv = (KeyValueJsonRecord<?, ?>) jsonRecord;
                 assertEquals(kv.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
 
                 InvokeResult result =
@@ -509,13 +511,13 @@ public class AWSLambdaFunctionTest {
                   .optionalString("newFirstName")
                   .endRecord();
 
-          JsonTypedValue jsonTypedValue = (JsonTypedValue) input;
+          JsonJsonRecord jsonJsonRecord = (JsonJsonRecord) input;
 
-          JsonTypedValue output = new JsonTypedValue();
+          JsonJsonRecord output = new JsonJsonRecord();
           ObjectMapper objectMapper = new ObjectMapper();
           ObjectNode jsonNode = objectMapper.createObjectNode();
 
-          jsonNode.put("newFirstName", jsonTypedValue.getValue().get("firstName").asText() + "!");
+          jsonNode.put("newFirstName", jsonJsonRecord.getValue().get("firstName").asText() + "!");
 
           output.setSchemaType(SchemaType.JSON);
           output.setSchema(newSchema.toString().getBytes(StandardCharsets.UTF_8));
@@ -535,7 +537,7 @@ public class AWSLambdaFunctionTest {
             invocationOnMock -> {
               try {
                 InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
-                JsonRecord jsonRecord =
+                JsonRecord<?, ?> jsonRecord =
                     mapper.readValue(request.getPayload().array(), JsonRecord.class);
 
                 assertEquals(jsonRecord.getTopicName(), "my-topic");
@@ -550,7 +552,10 @@ public class AWSLambdaFunctionTest {
 
                 Map<String, String> properties = new HashMap<>();
                 properties.put("new-prop", "new-prop-value");
-                JsonRecord outputRecord = new JsonRecord();
+
+                StringJsonRecord outputRecord = new StringJsonRecord();
+                outputRecord.setSchemaType(SchemaType.STRING);
+                outputRecord.setValue("new-value");
                 outputRecord.setKey("new-key");
                 outputRecord.setDestinationTopic("new-destination-topic");
                 outputRecord.setEventTime(200L);
@@ -559,12 +564,6 @@ public class AWSLambdaFunctionTest {
                 outputRecord.setRecordSequence(200L);
                 outputRecord.setPartitionId("new-partition-id");
                 outputRecord.setPartitionIndex(200);
-
-                StringTypedValue value = new StringTypedValue();
-                value.setSchemaType(SchemaType.STRING);
-                value.setValue("new-value");
-
-                outputRecord.setValue(value);
 
                 byte[] output = mapper.writeValueAsBytes(outputRecord);
 
@@ -697,17 +696,15 @@ public class AWSLambdaFunctionTest {
     return function.process(genericRecord, context);
   }
 
-  private void setClientHandler(Function<TypedValue<?>, TypedValue<?>> handler) {
+  private void setClientHandler(Function<JsonRecord<?, ?>, JsonRecord<?, ?>> handler) {
     doAnswer(
             invocationOnMock -> {
               try {
                 InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
-                JsonRecord jsonRecord =
+                JsonRecord<?, ?> jsonRecord =
                     mapper.readValue(request.getPayload().array(), JsonRecord.class);
 
-                TypedValue<?> outputValue = handler.apply(jsonRecord.getValue());
-                JsonRecord outputJsonRecord = new JsonRecord();
-                outputJsonRecord.setValue(outputValue);
+                JsonRecord<?, ?> outputJsonRecord = handler.apply(jsonRecord);
 
                 byte[] reponseBody = mapper.writeValueAsBytes(outputJsonRecord);
                 InvokeResult result =

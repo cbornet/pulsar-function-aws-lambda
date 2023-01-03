@@ -48,18 +48,20 @@ public class AWSLambdaFunctionConfig implements Serializable {
   @FieldDoc(
     required = true,
     defaultValue = "",
-    help = "The AWS region (eg. us-west-1, us-west-2). If left blank, the region will be parsed from the lambdaFunctionName if it's in the full ARN format."
+    help =
+        "The AWS region (eg. us-west-1, us-west-2). If left blank, the region will be parsed from the lambdaFunctionName if it's in the full ARN format."
   )
   private String awsRegion;
 
   @FieldDoc(
     required = true,
     defaultValue = "",
-    help = "The name of the Lambda function, version, or alias.\n"
-        + "*Name formats*\n"
-        + "Function name - my-function (name-only), my-function:v1 (with alias).\n"
-        + "Function ARN - arn:aws:lambda:us-west-2:123456789012:function:my-function.\n"
-        + "Partial ARN - 123456789012:function:my-function."
+    help =
+        "The name of the Lambda function, version, or alias.\n"
+            + "*Name formats*\n"
+            + "Function name - my-function (name-only), my-function:v1 (with alias).\n"
+            + "Function ARN - arn:aws:lambda:us-west-2:123456789012:function:my-function.\n"
+            + "Partial ARN - 123456789012:function:my-function."
   )
   private String lambdaFunctionName;
 
@@ -79,11 +81,4 @@ public class AWSLambdaFunctionConfig implements Serializable {
     help = "json-parameters to initialize `AwsCredentialsProviderPlugin`"
   )
   private String awsCredentialPluginParam = "";
-
-  @FieldDoc(
-    required = true,
-    defaultValue = "true",
-    help = "Invoke a lambda function synchronously, false to invoke asynchronously."
-  )
-  private boolean synchronousInvocation = true;
 }

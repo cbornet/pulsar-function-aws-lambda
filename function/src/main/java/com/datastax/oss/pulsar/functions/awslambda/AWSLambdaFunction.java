@@ -40,12 +40,15 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.avro.io.EncoderFactory;
@@ -53,6 +56,7 @@ import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.schema.GenericObject;
 import org.apache.pulsar.client.api.schema.KeyValueSchema;
 import org.apache.pulsar.common.schema.KeyValue;
+import org.apache.pulsar.common.schema.KeyValueEncodingType;
 import org.apache.pulsar.common.schema.SchemaType;
 import org.apache.pulsar.functions.api.Context;
 import org.apache.pulsar.functions.api.Function;
@@ -81,6 +85,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
   private AWSLambdaFunctionConfig config;
 
   private Logger logger;
+  private List<String> excludedFields;
 
   @Override
   public void initialize(Context context) throws Exception {
@@ -88,6 +93,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     config =
         MAPPER.readValue(
             MAPPER.writeValueAsString(context.getUserConfigMap()), AWSLambdaFunctionConfig.class);
+    excludedFields =
+        Arrays.stream(config.getExcludedFields().split(","))
+            .map(String::trim)
+            .collect(Collectors.toList());
     client = createAwsClient();
   }
 
@@ -219,23 +228,36 @@ public class AWSLambdaFunction extends AbstractAwsConnector
   public byte[] convertToLambdaPayload(Record<GenericObject> record) throws IOException {
     JsonRecord<?, ?> payload =
         getJsonRecord(
-            record.getSchema(), record.getValue().getNativeObject(), record.getKey().orElse(null));
-    record.getTopicName().ifPresent(payload::setTopicName);
-    record.getDestinationTopic().ifPresent(payload::setDestinationTopic);
-    record.getEventTime().ifPresent(payload::setEventTime);
-    record.getPartitionId().ifPresent(payload::setPartitionId);
-    record.getPartitionIndex().ifPresent(payload::setPartitionIndex);
-    record.getRecordSequence().ifPresent(payload::setRecordSequence);
-    record.getTopicName().ifPresent(payload::setTopicName);
-
-    if (record.getProperties() != null) {
+            record.getSchema(),
+            record.getValue().getNativeObject(),
+            record.getKey().orElse(null),
+            "");
+    if (!excludedFields.contains("topicName")) {
+      record.getTopicName().ifPresent(payload::setTopicName);
+    }
+    if (!excludedFields.contains("destinationTopic")) {
+      record.getDestinationTopic().ifPresent(payload::setDestinationTopic);
+    }
+    if (!excludedFields.contains("eventTime")) {
+      record.getEventTime().ifPresent(payload::setEventTime);
+    }
+    if (!excludedFields.contains("partitionId")) {
+      record.getPartitionId().ifPresent(payload::setPartitionId);
+    }
+    if (!excludedFields.contains("partitionIndex")) {
+      record.getPartitionIndex().ifPresent(payload::setPartitionIndex);
+    }
+    if (!excludedFields.contains("recordSequence")) {
+      record.getRecordSequence().ifPresent(payload::setRecordSequence);
+    }
+    if (!excludedFields.contains("properties") && record.getProperties() != null) {
       payload.setProperties(new HashMap<>(record.getProperties()));
     }
 
     return MAPPER.writeValueAsBytes(payload);
   }
 
-  private JsonRecord<?, ?> getJsonRecord(Schema<?> schema, Object value, String key)
+  private JsonRecord<?, ?> getJsonRecord(Schema<?> schema, Object value, String key, String prefix)
       throws IOException {
     JsonRecord<?, ?> jsonRecord;
     switch (schema.getSchemaInfo().getType()) {
@@ -306,14 +328,20 @@ public class AWSLambdaFunction extends AbstractAwsConnector
       case JSON:
         jsonRecord = new JsonJsonRecord();
         ((JsonJsonRecord) jsonRecord).setValue(((JsonNode) value));
-        jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
+
+        if (!excludedFields.contains(prefix + "schema")) {
+          jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
+        }
         break;
       case AVRO:
         jsonRecord = new BytesJsonRecord();
         org.apache.avro.generic.GenericRecord avroRecord =
             (org.apache.avro.generic.GenericRecord) value;
         ((BytesJsonRecord) jsonRecord).setValue(serializeAvro(avroRecord));
-        jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
+
+        if (!excludedFields.contains(prefix + "schema")) {
+          jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
+        }
         break;
       case KEY_VALUE:
         KeyValue<?, ?> keyValue = (KeyValue<?, ?>) value;
@@ -322,27 +350,38 @@ public class AWSLambdaFunction extends AbstractAwsConnector
             keyValueSchema.getKeySchema().getSchemaInfo().getType().isStruct()
                 ? ((GenericObject) keyValue.getKey()).getNativeObject()
                 : keyValue.getKey();
-        JsonRecord<?, ?> keyJsonRecord = getJsonRecord(keyValueSchema.getKeySchema(), kvKey, null);
+        JsonRecord<?, ?> keyJsonRecord =
+            getJsonRecord(keyValueSchema.getKeySchema(), kvKey, null, "key.");
         Object kvValue =
             keyValueSchema.getValueSchema().getSchemaInfo().getType().isStruct()
                 ? ((GenericObject) keyValue.getValue()).getNativeObject()
                 : keyValue.getValue();
         JsonRecord<?, ?> valueJsonRecord =
-            getJsonRecord(keyValueSchema.getValueSchema(), kvValue, null);
+            getJsonRecord(keyValueSchema.getValueSchema(), kvValue, null, "value.");
         KeyValueJsonRecord<JsonRecord<?, ?>, JsonRecord<?, ?>> keyValueJsonRecord =
             new KeyValueJsonRecord<>();
-        keyValueJsonRecord.setKey(keyJsonRecord);
         keyValueJsonRecord.setValue(valueJsonRecord);
-        keyValueJsonRecord.setKeyValueEncodingType(keyValueSchema.getKeyValueEncodingType());
+        if (!excludedFields.contains("key")) {
+          keyValueJsonRecord.setKey(keyJsonRecord);
+        }
+        if (!excludedFields.contains("keyValueEncodingType")
+            && !KeyValueEncodingType.INLINE.equals(keyValueSchema.getKeyValueEncodingType())) {
+          keyValueJsonRecord.setKeyValueEncodingType(keyValueSchema.getKeyValueEncodingType());
+        }
         jsonRecord = keyValueJsonRecord;
         break;
       default:
         throw new IllegalStateException("Unexpected value: " + schema.getSchemaInfo().getType());
     }
-    if (jsonRecord instanceof StringKeyJsonRecord) {
+    if (excludedFields.contains(prefix + "value")) {
+      jsonRecord.setValue(null);
+    }
+    if (!excludedFields.contains(prefix + "key") && jsonRecord instanceof StringKeyJsonRecord) {
       ((StringKeyJsonRecord<?>) jsonRecord).setKey(key);
     }
-    jsonRecord.setSchemaType(schema.getSchemaInfo().getType());
+    if (!excludedFields.contains(prefix + "schemaType")) {
+      jsonRecord.setSchemaType(schema.getSchemaInfo().getType());
+    }
     return jsonRecord;
   }
 

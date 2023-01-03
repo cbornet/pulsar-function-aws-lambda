@@ -28,7 +28,6 @@ import java.util.Date;
 import java.util.Map;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 import org.apache.pulsar.common.schema.KeyValueEncodingType;
 import org.apache.pulsar.common.schema.SchemaType;
 
@@ -36,11 +35,42 @@ import org.apache.pulsar.common.schema.SchemaType;
  * The payload class convert from {@link org.apache.pulsar.functions.api.Record} for AWS lambda
  * invoke request.
  */
-@NoArgsConstructor
 @Data
-public class JsonRecord {
-  private TypedValue<?> value;
-  private String key;
+@JsonTypeInfo(
+  use = JsonTypeInfo.Id.NAME,
+  include = JsonTypeInfo.As.EXISTING_PROPERTY,
+  defaultImpl = BytesJsonRecord.class,
+  visible = true,
+  property = "schemaType"
+)
+@JsonSubTypes({
+  @JsonSubTypes.Type(value = StringJsonRecord.class, name = "STRING"),
+  @JsonSubTypes.Type(value = ByteJsonRecord.class, name = "INT8"),
+  @JsonSubTypes.Type(value = ShortJsonRecord.class, name = "INT16"),
+  @JsonSubTypes.Type(value = IntegerJsonRecord.class, name = "INT32"),
+  @JsonSubTypes.Type(value = LongJsonRecord.class, name = "INT64"),
+  @JsonSubTypes.Type(value = FloatJsonRecord.class, name = "FLOAT"),
+  @JsonSubTypes.Type(value = DoubleJsonRecord.class, name = "DOUBLE"),
+  @JsonSubTypes.Type(value = BooleanJsonRecord.class, name = "BOOLEAN"),
+  @JsonSubTypes.Type(value = DateJsonRecord.class, name = "DATE"),
+  @JsonSubTypes.Type(value = TimeJsonRecord.class, name = "TIME"),
+  @JsonSubTypes.Type(value = TimestampJsonRecord.class, name = "TIMESTAMP"),
+  @JsonSubTypes.Type(value = InstantJsonRecord.class, name = "INSTANT"),
+  @JsonSubTypes.Type(value = LocalDateJsonRecord.class, name = "LOCAL_DATE"),
+  @JsonSubTypes.Type(value = LocalTimeJsonRecord.class, name = "LOCAL_TIME"),
+  @JsonSubTypes.Type(value = LocalDateTimeJsonRecord.class, name = "LOCAL_DATE_TIME"),
+  @JsonSubTypes.Type(value = JsonJsonRecord.class, name = "JSON"),
+  @JsonSubTypes.Type(value = KeyValueJsonRecord.class, name = "KEY_VALUE"),
+  @JsonSubTypes.Type(
+    value = BytesJsonRecord.class,
+    names = {"BYTES", "AVRO"}
+  ),
+})
+abstract class JsonRecord<K, V> {
+  private V value;
+  private K key;
+  private SchemaType schemaType;
+  private byte[] schema;
   private String topicName;
   private String partitionId;
   private Integer partitionIndex;
@@ -50,79 +80,45 @@ public class JsonRecord {
   private Map<String, String> properties;
 }
 
-@Data
-@JsonTypeInfo(
-  use = JsonTypeInfo.Id.NAME,
-  include = JsonTypeInfo.As.EXISTING_PROPERTY,
-  visible = true,
-  property = "schemaType"
-)
-@JsonSubTypes({
-  @JsonSubTypes.Type(value = StringTypedValue.class, name = "STRING"),
-  @JsonSubTypes.Type(value = ByteTypedValue.class, name = "INT8"),
-  @JsonSubTypes.Type(value = ShortTypedValue.class, name = "INT16"),
-  @JsonSubTypes.Type(value = IntegerTypedValue.class, name = "INT32"),
-  @JsonSubTypes.Type(value = LongTypedValue.class, name = "INT64"),
-  @JsonSubTypes.Type(value = FloatTypedValue.class, name = "FLOAT"),
-  @JsonSubTypes.Type(value = DoubleTypedValue.class, name = "DOUBLE"),
-  @JsonSubTypes.Type(value = BooleanTypedValue.class, name = "BOOLEAN"),
-  @JsonSubTypes.Type(value = DateTypedValue.class, name = "DATE"),
-  @JsonSubTypes.Type(value = TimeTypedValue.class, name = "TIME"),
-  @JsonSubTypes.Type(value = TimestampTypedValue.class, name = "TIMESTAMP"),
-  @JsonSubTypes.Type(value = InstantTypedValue.class, name = "INSTANT"),
-  @JsonSubTypes.Type(value = LocalDateTypedValue.class, name = "LOCAL_DATE"),
-  @JsonSubTypes.Type(value = LocalTimeTypedValue.class, name = "LOCAL_TIME"),
-  @JsonSubTypes.Type(value = LocalDateTimeTypedValue.class, name = "LOCAL_DATE_TIME"),
-  @JsonSubTypes.Type(value = JsonTypedValue.class, name = "JSON"),
-  @JsonSubTypes.Type(value = KeyValueTypedValue.class, name = "KEY_VALUE"),
-  @JsonSubTypes.Type(
-    value = BytesTypedValue.class,
-    names = {"BYTES", "AVRO"}
-  ),
-})
-abstract class TypedValue<T> {
-  protected SchemaType schemaType;
-  protected byte[] schema;
-  protected T value;
-}
+abstract class StringKeyJsonRecord<V> extends JsonRecord<String, V> {}
 
-class StringTypedValue extends TypedValue<String> {}
+class StringJsonRecord extends StringKeyJsonRecord<String> {}
 
-class ByteTypedValue extends TypedValue<Byte> {}
+class ByteJsonRecord extends StringKeyJsonRecord<Byte> {}
 
-class ShortTypedValue extends TypedValue<Short> {}
+class ShortJsonRecord extends StringKeyJsonRecord<Short> {}
 
-class IntegerTypedValue extends TypedValue<Integer> {}
+class IntegerJsonRecord extends StringKeyJsonRecord<Integer> {}
 
-class LongTypedValue extends TypedValue<Long> {}
+class LongJsonRecord extends StringKeyJsonRecord<Long> {}
 
-class FloatTypedValue extends TypedValue<Float> {}
+class FloatJsonRecord extends StringKeyJsonRecord<Float> {}
 
-class DoubleTypedValue extends TypedValue<Double> {}
+class DoubleJsonRecord extends StringKeyJsonRecord<Double> {}
 
-class BooleanTypedValue extends TypedValue<Boolean> {}
+class BooleanJsonRecord extends StringKeyJsonRecord<Boolean> {}
 
-class DateTypedValue extends TypedValue<Date> {}
+class DateJsonRecord extends StringKeyJsonRecord<Date> {}
 
-class TimeTypedValue extends TypedValue<Time> {}
+class TimeJsonRecord extends StringKeyJsonRecord<Time> {}
 
-class TimestampTypedValue extends TypedValue<Timestamp> {}
+class TimestampJsonRecord extends StringKeyJsonRecord<Timestamp> {}
 
-class InstantTypedValue extends TypedValue<Instant> {}
+class InstantJsonRecord extends StringKeyJsonRecord<Instant> {}
 
-class LocalDateTypedValue extends TypedValue<LocalDate> {}
+class LocalDateJsonRecord extends StringKeyJsonRecord<LocalDate> {}
 
-class LocalTimeTypedValue extends TypedValue<LocalTime> {}
+class LocalTimeJsonRecord extends StringKeyJsonRecord<LocalTime> {}
 
-class LocalDateTimeTypedValue extends TypedValue<LocalDateTime> {}
+class LocalDateTimeJsonRecord extends StringKeyJsonRecord<LocalDateTime> {}
 
-class JsonTypedValue extends TypedValue<JsonNode> {}
+class JsonJsonRecord extends StringKeyJsonRecord<JsonNode> {}
 
-class BytesTypedValue extends TypedValue<byte[]> {}
+class BytesJsonRecord extends StringKeyJsonRecord<byte[]> {}
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-class KeyValueTypedValue extends TypedValue<TypedValue<?>> {
+class KeyValueJsonRecord<K extends JsonRecord<?, ?>, V extends JsonRecord<?, ?>>
+    extends JsonRecord<K, V> {
   private KeyValueEncodingType keyValueEncodingType;
-  private TypedValue<?> key;
 }

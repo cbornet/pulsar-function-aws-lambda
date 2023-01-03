@@ -61,11 +61,9 @@ pulsar-admin functions create \
 For each message consumed from Pulsar, the Lambda function will be invoked with a JSON payload that has a structure like:
 ```json
 {
-  "value" : {
-    "schemaType" : <SchemaType>, // eg. STRING, INT32, AVRO, ...
-    "schema" : <schema>,
-    "value" : <value object>
-  }
+  "value" : <value>,
+  "schemaType" : <SchemaType>, // eg. STRING, INT32, AVRO, ...,
+  "schema" : <schema>,
   "key" : "my-key",
   "topicName" : "my-topic",
   "partitionId" : "my-partition-id",
@@ -85,9 +83,9 @@ The returned JSON will be used to send the response message to Pulsar.
 Non-null values of the response will override the default values of the response message.
 If `value` is `null` in the response, no message will be sent to the destination topic.
 
-### Value object
+### Values and schema
 
-The value object structure depends on the schema type.
+The value field depends on the schema type.
 
 #### Primitive types
 
@@ -95,22 +93,22 @@ For primitive types, the value is the JSON representation of the Java type.
 Here are some example Lambda payloads for the primitive schema types:
 
 ```json
-{"value":{"schemaType":"BYTES","value":"Kg=="}}
-{"value":{"schemaType":"STRING","value":"test"}}
-{"value":{"schemaType":"INT8","value":42}}
-{"value":{"schemaType":"INT16","value":42}}
-{"value":{"schemaType":"INT32","value":42}}
-{"value":{"schemaType":"INT64","value":42}}
-{"value":{"schemaType":"FLOAT","value":42.0}}
-{"value":{"schemaType":"DOUBLE","value":42.0}}
-{"value":{"schemaType":"BOOLEAN","value":true}}
-{"value":{"schemaType":"DATE","value":"1970-01-01T00:00:00.100+00:00"}}
-{"value":{"schemaType":"TIME","value":"01:01:40"}}
-{"value":{"schemaType":"TIMESTAMP","value":"1970-01-01T00:01:40.000+00:00"}}
-{"value":{"schemaType":"INSTANT","value":"1970-01-01T00:00:00.100Z"}}
-{"value":{"schemaType":"LOCAL_DATE","value":"1970-04-11"}}
-{"value":{"schemaType":"LOCAL_TIME","value":"00:01:40"}}
-{"value":{"schemaType":"LOCAL_DATE_TIME","value":"1970-01-01T00:01:40"}}
+{"schemaType":"BYTES","value":"Kg=="}
+{"schemaType":"STRING","value":"test"}
+{"schemaType":"INT8","value":42}
+{"schemaType":"INT16","value":42}
+{"schemaType":"INT32","value":42}
+{"schemaType":"INT64","value":42}
+{"schemaType":"FLOAT","value":42.0}
+{"schemaType":"DOUBLE","value":42.0}
+{"schemaType":"BOOLEAN","value":true}
+{"schemaType":"DATE","value":"1970-01-01T00:00:00.100+00:00"}
+{"schemaType":"TIME","value":"01:01:40"}
+{"schemaType":"TIMESTAMP","value":"1970-01-01T00:01:40.000+00:00"}
+{"schemaType":"INSTANT","value":"1970-01-01T00:00:00.100Z"}
+{"schemaType":"LOCAL_DATE","value":"1970-04-11"}
+{"schemaType":"LOCAL_TIME","value":"00:01:40"}
+{"schemaType":"LOCAL_DATE_TIME","value":"1970-01-01T00:01:40"}
 ```
 
 #### AVRO type
@@ -121,11 +119,9 @@ Here is an example of a Lambda payload with an AVRO value
 
 ```json
 {
-  "value": {
-    "schemaType": "AVRO",
-    "schema": "eyJ0eXBlIjoicmVjb3JkIiwibmFtZSI6InJlY29yZCIsImZpZWxkcyI6W3sibmFtZSI6ImZpcnN0TmFtZSIsInR5cGUiOiJzdHJpbmcifV19", 
-    "value": "CEphbmU="
-  }
+  "schemaType": "AVRO",
+  "schema": "eyJ0eXBlIjoicmVjb3JkIiwibmFtZSI6InJlY29yZCIsImZpZWxkcyI6W3sibmFtZSI6ImZpcnN0TmFtZSIsInR5cGUiOiJzdHJpbmcifV19", 
+  "value": "CEphbmU="
 }
 ```
 
@@ -136,34 +132,31 @@ The native AVRO schema is also sent in the payload as a Base64 binary string.
 
 ```json
 {
+  "schemaType": "JSON",
+  "schema": "eyJ0eXBlIjoicmVjb3JkIiwibmFtZSI6InJlY29yZCIsImZpZWxkcyI6W3sibmFtZSI6ImZpcnN0TmFtZSIsInR5cGUiOiJzdHJpbmcifV19",
   "value": {
-    "schemaType": "JSON",
-    "schema": "eyJ0eXBlIjoicmVjb3JkIiwibmFtZSI6InJlY29yZCIsImZpZWxkcyI6W3sibmFtZSI6ImZpcnN0TmFtZSIsInR5cGUiOiJzdHJpbmcifV19",
-    "value": {
-      "firstName": "Jane"
-    }
+    "firstName": "Jane"
   }
 }
 ```
 
 #### KeyValue type
 
-For KeyValue types, the key and value are themselves Value objects with their own schema type.
-The encoding type (`INLINE` or `SEPARATED`) is passed in the `keyValueEncodingType` field. A null `keyValueEncodingType` corresponds to an `INLINE` encoding.
+For KeyValue types, the key and value are structures with the fields `value`, `schemaType` and `schema`.
+The encoding type (`INLINE` or `SEPARATED`) is passed in the `keyValueEncodingType` field. 
+A null `keyValueEncodingType` corresponds to an `INLINE` encoding.
 
 ```json
 {
+  "schemaType": "KEY_VALUE",
+  "key": {
+    "schemaType":"STRING",
+    "value":"my-key"
+  },
   "value": {
-    "schemaType": "KEY_VALUE",
-    "key": {
-      "schemaType":"STRING",
-      "value":"my-key"
-    },
-    "value": {
-      "schemaType": "INT32",
-      "value": 42
-    },
-    "keyValueEncodingType":"SEPARATED"
-  }
+    "schemaType": "INT32",
+    "value": 42
+  },
+  "keyValueEncodingType":"SEPARATED"
 }
 ```

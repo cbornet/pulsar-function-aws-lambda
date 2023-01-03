@@ -74,6 +74,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
           .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
           .setSerializationInclusion(JsonInclude.Include.NON_NULL)
           .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+          .configure(SerializationFeature.FAIL_ON_UNWRAPPED_TYPE_IDENTIFIERS, false)
           .registerModule(new JavaTimeModule());
 
   private AWSLambdaAsync client;
@@ -110,7 +111,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
               config.getLambdaFunctionName(),
               record);
         }
-        JsonRecord jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
+        JsonRecord<?, ?> jsonRecord = MAPPER.readValue(arr, JsonRecord.class);
 
         if (jsonRecord.getValue() == null) {
           return null;
@@ -118,8 +119,8 @@ public class AWSLambdaFunction extends AbstractAwsConnector
 
         Schema outputSchema;
         Object outputValue;
-        if (SchemaType.KEY_VALUE.equals(jsonRecord.getValue().getSchemaType())) {
-          KeyValueTypedValue keyValue = (KeyValueTypedValue) jsonRecord.getValue();
+        if (SchemaType.KEY_VALUE.equals(jsonRecord.getSchemaType())) {
+          KeyValueJsonRecord<?, ?> keyValue = (KeyValueJsonRecord<?, ?>) jsonRecord;
           Schema<?> keyOutputSchema = getSchema(keyValue.getKey());
           Schema<?> valueOutputSchema = getSchema(keyValue.getValue());
           if (keyValue.getKeyValueEncodingType() != null) {
@@ -132,15 +133,15 @@ public class AWSLambdaFunction extends AbstractAwsConnector
           outputValue =
               new KeyValue<>(keyValue.getKey().getValue(), keyValue.getValue().getValue());
         } else {
-          outputSchema = getSchema(jsonRecord.getValue());
-          outputValue = jsonRecord.getValue().getValue();
+          outputSchema = getSchema(jsonRecord);
+          outputValue = jsonRecord.getValue();
         }
 
         FunctionRecord.FunctionRecordBuilder<GenericObject> builder =
             context.newOutputRecordBuilder(outputSchema).value(outputValue);
 
-        if (jsonRecord.getKey() != null) {
-          builder.key(jsonRecord.getKey());
+        if (jsonRecord instanceof StringKeyJsonRecord) {
+          builder.key((String) jsonRecord.getKey());
         }
 
         if (jsonRecord.getDestinationTopic() != null) {
@@ -216,11 +217,10 @@ public class AWSLambdaFunction extends AbstractAwsConnector
   }
 
   public byte[] convertToLambdaPayload(Record<GenericObject> record) throws IOException {
-    JsonRecord payload = new JsonRecord();
-
-    payload.setValue(getTypedValue(record.getSchema(), record.getValue().getNativeObject()));
+    JsonRecord<?, ?> payload =
+        getJsonRecord(
+            record.getSchema(), record.getValue().getNativeObject(), record.getKey().orElse(null));
     record.getTopicName().ifPresent(payload::setTopicName);
-    record.getKey().ifPresent(payload::setKey);
     record.getDestinationTopic().ifPresent(payload::setDestinationTopic);
     record.getEventTime().ifPresent(payload::setEventTime);
     record.getPartitionId().ifPresent(payload::setPartitionId);
@@ -235,109 +235,115 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     return MAPPER.writeValueAsBytes(payload);
   }
 
-  private TypedValue<?> getTypedValue(Schema<?> schema, Object value) throws IOException {
-    TypedValue<?> typedValue;
+  private JsonRecord<?, ?> getJsonRecord(Schema<?> schema, Object value, String key)
+      throws IOException {
+    JsonRecord<?, ?> jsonRecord;
     switch (schema.getSchemaInfo().getType()) {
       case STRING:
-        typedValue = new StringTypedValue();
-        ((StringTypedValue) typedValue).setValue((String) value);
+        jsonRecord = new StringJsonRecord();
+        ((StringJsonRecord) jsonRecord).setValue((String) value);
         break;
       case INT8:
-        typedValue = new ByteTypedValue();
-        ((ByteTypedValue) typedValue).setValue((Byte) value);
+        jsonRecord = new ByteJsonRecord();
+        ((ByteJsonRecord) jsonRecord).setValue((Byte) value);
         break;
       case INT16:
-        typedValue = new ShortTypedValue();
-        ((ShortTypedValue) typedValue).setValue((Short) value);
+        jsonRecord = new ShortJsonRecord();
+        ((ShortJsonRecord) jsonRecord).setValue((Short) value);
         break;
       case INT32:
-        typedValue = new IntegerTypedValue();
-        ((IntegerTypedValue) typedValue).setValue((Integer) value);
+        jsonRecord = new IntegerJsonRecord();
+        ((IntegerJsonRecord) jsonRecord).setValue((Integer) value);
         break;
       case INT64:
-        typedValue = new LongTypedValue();
-        ((LongTypedValue) typedValue).setValue((Long) value);
+        jsonRecord = new LongJsonRecord();
+        ((LongJsonRecord) jsonRecord).setValue((Long) value);
         break;
       case FLOAT:
-        typedValue = new FloatTypedValue();
-        ((FloatTypedValue) typedValue).setValue((Float) value);
+        jsonRecord = new FloatJsonRecord();
+        ((FloatJsonRecord) jsonRecord).setValue((Float) value);
         break;
       case DOUBLE:
-        typedValue = new DoubleTypedValue();
-        ((DoubleTypedValue) typedValue).setValue((Double) value);
+        jsonRecord = new DoubleJsonRecord();
+        ((DoubleJsonRecord) jsonRecord).setValue((Double) value);
         break;
       case BOOLEAN:
-        typedValue = new BooleanTypedValue();
-        ((BooleanTypedValue) typedValue).setValue((Boolean) value);
+        jsonRecord = new BooleanJsonRecord();
+        ((BooleanJsonRecord) jsonRecord).setValue((Boolean) value);
         break;
       case DATE:
-        typedValue = new DateTypedValue();
-        ((DateTypedValue) typedValue).setValue((Date) value);
+        jsonRecord = new DateJsonRecord();
+        ((DateJsonRecord) jsonRecord).setValue((Date) value);
         break;
       case TIME:
-        typedValue = new TimeTypedValue();
-        ((TimeTypedValue) typedValue).setValue((Time) value);
+        jsonRecord = new TimeJsonRecord();
+        ((TimeJsonRecord) jsonRecord).setValue((Time) value);
         break;
       case TIMESTAMP:
-        typedValue = new TimestampTypedValue();
-        ((TimestampTypedValue) typedValue).setValue((Timestamp) value);
+        jsonRecord = new TimestampJsonRecord();
+        ((TimestampJsonRecord) jsonRecord).setValue((Timestamp) value);
         break;
       case INSTANT:
-        typedValue = new InstantTypedValue();
-        ((InstantTypedValue) typedValue).setValue((Instant) value);
+        jsonRecord = new InstantJsonRecord();
+        ((InstantJsonRecord) jsonRecord).setValue((Instant) value);
         break;
       case LOCAL_DATE:
-        typedValue = new LocalDateTypedValue();
-        ((LocalDateTypedValue) typedValue).setValue((LocalDate) value);
+        jsonRecord = new LocalDateJsonRecord();
+        ((LocalDateJsonRecord) jsonRecord).setValue((LocalDate) value);
         break;
       case LOCAL_TIME:
-        typedValue = new LocalTimeTypedValue();
-        ((LocalTimeTypedValue) typedValue).setValue((LocalTime) value);
+        jsonRecord = new LocalTimeJsonRecord();
+        ((LocalTimeJsonRecord) jsonRecord).setValue((LocalTime) value);
         break;
       case LOCAL_DATE_TIME:
-        typedValue = new LocalDateTimeTypedValue();
-        ((LocalDateTimeTypedValue) typedValue).setValue((LocalDateTime) value);
+        jsonRecord = new LocalDateTimeJsonRecord();
+        ((LocalDateTimeJsonRecord) jsonRecord).setValue((LocalDateTime) value);
         break;
       case BYTES:
-        typedValue = new BytesTypedValue();
-        ((BytesTypedValue) typedValue).setValue(((byte[]) value));
+        jsonRecord = new BytesJsonRecord();
+        ((BytesJsonRecord) jsonRecord).setValue(((byte[]) value));
         break;
       case JSON:
-        typedValue = new JsonTypedValue();
-        ((JsonTypedValue) typedValue).setValue(((JsonNode) value));
-        typedValue.setSchema(schema.getSchemaInfo().getSchema());
+        jsonRecord = new JsonJsonRecord();
+        ((JsonJsonRecord) jsonRecord).setValue(((JsonNode) value));
+        jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
         break;
       case AVRO:
-        typedValue = new BytesTypedValue();
+        jsonRecord = new BytesJsonRecord();
         org.apache.avro.generic.GenericRecord avroRecord =
             (org.apache.avro.generic.GenericRecord) value;
-        ((BytesTypedValue) typedValue).setValue(serializeAvro(avroRecord));
-        typedValue.setSchema(schema.getSchemaInfo().getSchema());
+        ((BytesJsonRecord) jsonRecord).setValue(serializeAvro(avroRecord));
+        jsonRecord.setSchema(schema.getSchemaInfo().getSchema());
         break;
       case KEY_VALUE:
-        typedValue = new KeyValueTypedValue();
         KeyValue<?, ?> keyValue = (KeyValue<?, ?>) value;
         KeyValueSchema<?, ?> keyValueSchema = (KeyValueSchema<?, ?>) schema;
-        Object key =
+        Object kvKey =
             keyValueSchema.getKeySchema().getSchemaInfo().getType().isStruct()
                 ? ((GenericObject) keyValue.getKey()).getNativeObject()
                 : keyValue.getKey();
-        TypedValue<?> keyTypedValue = getTypedValue(keyValueSchema.getKeySchema(), key);
+        JsonRecord<?, ?> keyJsonRecord = getJsonRecord(keyValueSchema.getKeySchema(), kvKey, null);
         Object kvValue =
             keyValueSchema.getValueSchema().getSchemaInfo().getType().isStruct()
                 ? ((GenericObject) keyValue.getValue()).getNativeObject()
                 : keyValue.getValue();
-        TypedValue<?> valueTypedValue = getTypedValue(keyValueSchema.getValueSchema(), kvValue);
-        ((KeyValueTypedValue) typedValue).setKey(keyTypedValue);
-        ((KeyValueTypedValue) typedValue).setValue(valueTypedValue);
-        ((KeyValueTypedValue) typedValue)
-            .setKeyValueEncodingType(keyValueSchema.getKeyValueEncodingType());
+        JsonRecord<?, ?> valueJsonRecord =
+            getJsonRecord(keyValueSchema.getValueSchema(), kvValue, null);
+        KeyValueJsonRecord<JsonRecord<?, ?>, JsonRecord<?, ?>> keyValueJsonRecord =
+            new KeyValueJsonRecord<>();
+        keyValueJsonRecord.setKey(keyJsonRecord);
+        keyValueJsonRecord.setValue(valueJsonRecord);
+        keyValueJsonRecord.setKeyValueEncodingType(keyValueSchema.getKeyValueEncodingType());
+        jsonRecord = keyValueJsonRecord;
         break;
       default:
         throw new IllegalStateException("Unexpected value: " + schema.getSchemaInfo().getType());
     }
-    typedValue.setSchemaType(schema.getSchemaInfo().getType());
-    return typedValue;
+    if (jsonRecord instanceof StringKeyJsonRecord) {
+      ((StringKeyJsonRecord<?>) jsonRecord).setKey(key);
+    }
+    jsonRecord.setSchemaType(schema.getSchemaInfo().getType());
+    return jsonRecord;
   }
 
   private static byte[] serializeAvro(org.apache.avro.generic.GenericRecord record)
@@ -350,18 +356,18 @@ public class AWSLambdaFunction extends AbstractAwsConnector
     return oo.toByteArray();
   }
 
-  private Schema<?> getSchema(TypedValue<?> typedValue) throws IOException {
-    if (typedValue.getSchemaType() == null) {
+  private Schema<?> getSchema(JsonRecord<?, ?> jsonRecord) throws IOException {
+    if (jsonRecord.getSchemaType() == null) {
       throw new IOException("Missing Lambda response schema type");
     }
-    switch (typedValue.getSchemaType()) {
+    switch (jsonRecord.getSchemaType()) {
       case AVRO:
         org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
         org.apache.avro.Schema schema =
-            parser.parse(new String(typedValue.getSchema(), StandardCharsets.UTF_8));
+            parser.parse(new String(jsonRecord.getSchema(), StandardCharsets.UTF_8));
         return Schema.NATIVE_AVRO(schema);
       case JSON:
-        return new JsonNodeSchema(typedValue.getSchema());
+        return new JsonNodeSchema(jsonRecord.getSchema());
       case INT8:
         return Schema.INT8;
       case INT16:
@@ -397,7 +403,7 @@ public class AWSLambdaFunction extends AbstractAwsConnector
       default:
         throw new IOException(
             String.format(
-                "Function output schema type %s not supported", typedValue.getSchemaType()));
+                "Function output schema type %s not supported", jsonRecord.getSchemaType()));
     }
   }
 

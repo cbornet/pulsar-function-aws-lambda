@@ -404,26 +404,43 @@ public class AWSLambdaFunctionTest {
         KeyValueSchemaImpl.of(Schema.STRING, Schema.STRING);
     KeyValue<String, String> keyValue = new KeyValue<>("key", "value");
 
-    setClientHandler(
-        input -> {
-          KeyValueJsonRecord<?, ?> kv = (KeyValueJsonRecord<?, ?>) input;
-          assertEquals(kv.getKey().getSchemaType(), SchemaType.STRING);
-          assertEquals(kv.getValue().getSchemaType(), SchemaType.STRING);
-          String newKey = kv.getKey().getValue() + "!";
-          String newValue = kv.getValue().getValue() + "!";
-          KeyValueJsonRecord<StringJsonRecord, StringJsonRecord> output =
-              new KeyValueJsonRecord<>();
-          StringJsonRecord keyField = new StringJsonRecord();
-          keyField.setValue(newKey);
-          keyField.setSchemaType(SchemaType.STRING);
-          output.setKey(keyField);
-          StringJsonRecord valueField = new StringJsonRecord();
-          valueField.setValue(newValue);
-          valueField.setSchemaType(SchemaType.STRING);
-          output.setValue(valueField);
-          output.setSchemaType(SchemaType.KEY_VALUE);
-          return output;
-        });
+    doAnswer(
+            invocationOnMock -> {
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+
+              String jsonRequest =
+                  ("{"
+                          + "'value':{'value':'value','schemaType':'STRING'},"
+                          + "'key':{'value':'key','schemaType':'STRING'},"
+                          + "'schemaType':'KEY_VALUE'}")
+                      .replace("'", "\"");
+
+              assertEquals(
+                  new String(request.getPayload().array(), StandardCharsets.UTF_8), jsonRequest);
+
+              String json =
+                  (""
+                          + "{"
+                          + "  'schemaType': 'KEY_VALUE',"
+                          + "  'value': {"
+                          + "    'schemaType': 'INT32',"
+                          + "    'value': 42"
+                          + "  },"
+                          + "  'key': {"
+                          + "   'schemaType':'INT64',"
+                          + "    'value': 43"
+                          + "  }"
+                          + "}")
+                      .replace("'", "\"");
+
+              InvokeResult result =
+                  new InvokeResult()
+                      .withPayload(ByteBuffer.wrap(json.getBytes(StandardCharsets.UTF_8)))
+                      .withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
     Record<?> outputRecord =
         processRecord(
             keyValueSchema,
@@ -435,11 +452,11 @@ public class AWSLambdaFunctionTest {
 
     assertEquals(kvSchema.getKeyValueEncodingType(), KeyValueEncodingType.INLINE);
 
-    assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.STRING);
-    assertEquals(kv.getKey(), "key!");
+    assertEquals(kvSchema.getKeySchema().getSchemaInfo().getType(), SchemaType.INT64);
+    assertEquals(kv.getKey(), 43L);
 
-    assertEquals(kvSchema.getValueSchema().getSchemaInfo().getType(), SchemaType.STRING);
-    assertEquals(kv.getValue(), "value!");
+    assertEquals(kvSchema.getValueSchema().getSchemaInfo().getType(), SchemaType.INT32);
+    assertEquals(kv.getValue(), 42);
   }
 
   @Test
@@ -450,22 +467,22 @@ public class AWSLambdaFunctionTest {
 
     doAnswer(
             invocationOnMock -> {
-              try {
-                InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
-                JsonRecord<?, ?> jsonRecord =
-                    mapper.readValue(request.getPayload().array(), JsonRecord.class);
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
 
-                KeyValueJsonRecord<?, ?> kv = (KeyValueJsonRecord<?, ?>) jsonRecord;
-                assertEquals(kv.getKeyValueEncodingType(), KeyValueEncodingType.SEPARATED);
+              String jsonRequest =
+                  ("{"
+                          + "'value':{'value':'value','schemaType':'STRING'},"
+                          + "'key':{'value':'key','schemaType':'STRING'},"
+                          + "'schemaType':'KEY_VALUE',"
+                          + "'keyValueEncodingType':'SEPARATED'}")
+                      .replace("'", "\"");
 
-                InvokeResult result =
-                    new InvokeResult().withPayload(request.getPayload()).withStatusCode(200);
-                return CompletableFuture.completedFuture(result);
-              } catch (Exception e) {
-                CompletableFuture<Object> failed = new CompletableFuture<>();
-                failed.completeExceptionally(e);
-                return e;
-              }
+              assertEquals(
+                  new String(request.getPayload().array(), StandardCharsets.UTF_8), jsonRequest);
+
+              InvokeResult result =
+                  new InvokeResult().withPayload(request.getPayload()).withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
             })
         .when(client)
         .invokeAsync(any(InvokeRequest.class));
@@ -535,46 +552,41 @@ public class AWSLambdaFunctionTest {
   void testRecordAttributes() throws Exception {
     doAnswer(
             invocationOnMock -> {
-              try {
-                InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
-                JsonRecord<?, ?> jsonRecord =
-                    mapper.readValue(request.getPayload().array(), JsonRecord.class);
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
 
-                assertEquals(jsonRecord.getTopicName(), "my-topic");
-                assertEquals(jsonRecord.getKey(), "my-key");
-                assertEquals(jsonRecord.getDestinationTopic(), "my-destination-topic");
-                assertEquals(jsonRecord.getEventTime().longValue(), 100L);
-                assertEquals(jsonRecord.getProperties().size(), 1);
-                assertEquals(jsonRecord.getProperties().get("my-prop"), "my-prop-value");
-                assertEquals(jsonRecord.getPartitionId(), "my-partition-id");
-                assertEquals(jsonRecord.getPartitionIndex().intValue(), 100);
-                assertEquals(jsonRecord.getRecordSequence().longValue(), 100L);
+              String jsonRequest =
+                  ("{'value':42,'key':'my-key','schemaType':'INT32','topicName':'my-topic',"
+                          + "'partitionId':'my-partition-id','partitionIndex':100,'recordSequence':100,"
+                          + "'destinationTopic':'my-destination-topic','eventTime':100,"
+                          + "'properties':{'my-prop':'my-prop-value'}}")
+                      .replace("'", "\"");
 
-                Map<String, String> properties = new HashMap<>();
-                properties.put("new-prop", "new-prop-value");
+              assertEquals(
+                  new String(request.getPayload().array(), StandardCharsets.UTF_8), jsonRequest);
 
-                StringJsonRecord outputRecord = new StringJsonRecord();
-                outputRecord.setSchemaType(SchemaType.STRING);
-                outputRecord.setValue("new-value");
-                outputRecord.setKey("new-key");
-                outputRecord.setDestinationTopic("new-destination-topic");
-                outputRecord.setEventTime(200L);
-                outputRecord.setProperties(properties);
-                outputRecord.setTopicName("new-topic");
-                outputRecord.setRecordSequence(200L);
-                outputRecord.setPartitionId("new-partition-id");
-                outputRecord.setPartitionIndex(200);
+              String json =
+                  (""
+                          + "{"
+                          + "  'value': 42,"
+                          + "  'schemaType': 'INT32',"
+                          + "  'key': 'new-key',"
+                          + "  'destinationTopic': 'new-destination-topic',"
+                          + "  'eventTime': 200,"
+                          + "  'topicName': 'new-topic',"
+                          + "  'recordSequence': '200',"
+                          + "  'partitionId': 'new-partition-id',"
+                          + "  'partitionIndex': 200,"
+                          + "  'properties': {"
+                          + "    'new-prop': 'new-prop-value'"
+                          + "  }"
+                          + "}")
+                      .replace("'", "\"");
 
-                byte[] output = mapper.writeValueAsBytes(outputRecord);
-
-                InvokeResult result =
-                    new InvokeResult().withPayload(ByteBuffer.wrap(output)).withStatusCode(200);
-                return CompletableFuture.completedFuture(result);
-              } catch (Exception e) {
-                CompletableFuture<Object> failed = new CompletableFuture<>();
-                failed.completeExceptionally(e);
-                return e;
-              }
+              InvokeResult result =
+                  new InvokeResult()
+                      .withPayload(ByteBuffer.wrap(json.getBytes(StandardCharsets.UTF_8)))
+                      .withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
             })
         .when(client)
         .invokeAsync(any(InvokeRequest.class));
@@ -611,8 +623,110 @@ public class AWSLambdaFunctionTest {
     assertEquals(outputRecord.getPartitionId().orElse(null), "new-partition-id");
     assertEquals(outputRecord.getPartitionIndex().orElse(0).intValue(), 200);
     assertEquals(outputRecord.getRecordSequence().orElse(0L).intValue(), 200L);
-    assertEquals(outputRecord.getValue(), "new-value");
-    assertEquals(outputRecord.getSchema(), Schema.STRING);
+    assertEquals(outputRecord.getValue(), 42);
+    assertEquals(outputRecord.getSchema(), Schema.INT32);
+  }
+
+  @Test
+  void testExcludedAttributes() throws Exception {
+    doAnswer(
+            invocationOnMock -> {
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+              assertEquals(new String(request.getPayload().array(), StandardCharsets.UTF_8), "{}");
+              InvokeResult result =
+                  new InvokeResult()
+                      .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)))
+                      .withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+
+    RecordSchemaBuilder recordSchemaBuilder = SchemaBuilder.record("record");
+    recordSchemaBuilder.field("firstName").type(SchemaType.STRING);
+
+    SchemaInfo schemaInfo = recordSchemaBuilder.build(SchemaType.AVRO);
+    GenericSchema<GenericRecord> genericSchema = Schema.generic(schemaInfo);
+
+    GenericRecord genericRecord = genericSchema.newRecordBuilder().set("firstName", "Jane").build();
+
+    Map<String, String> properties = new HashMap<>();
+    properties.put("my-prop", "my-prop-value");
+    TestRecord<Object> record =
+        TestRecord.builder()
+            .value(genericRecord)
+            .schema(genericSchema)
+            .destinationTopic("my-destination-topic")
+            .eventTime(100L)
+            .properties(properties)
+            .key("my-key")
+            .topicName("my-topic")
+            .partitionId("my-partition-id")
+            .partitionIndex(100)
+            .recordSequence(100L)
+            .build();
+    Map<String, Object> config = new HashMap<>();
+    config.put(
+        "excludedFields",
+        "topicName, key, destinationTopic, eventTime, properties, partitionId, partitionIndex, recordSequence, value, schemaType, schema");
+
+    TestContext context = new TestContext(record, config);
+    function.initialize(context);
+    function.process(genericRecord, context);
+  }
+
+  @Test
+  void testExcludedKVAttributes() throws Exception {
+    doAnswer(
+            invocationOnMock -> {
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+              assertEquals(
+                  new String(request.getPayload().array(), StandardCharsets.UTF_8),
+                  "{'value':{},'key':{},'schemaType':'KEY_VALUE'}".replace("'", "\""));
+              InvokeResult result =
+                  new InvokeResult()
+                      .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)))
+                      .withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+
+    Schema<KeyValue<String, String>> keyValueSchema =
+        KeyValueSchemaImpl.of(Schema.STRING, Schema.STRING, KeyValueEncodingType.SEPARATED);
+    KeyValue<String, String> keyValue = new KeyValue<>("key", "value");
+
+    processRecord(
+        keyValueSchema,
+        AutoConsumeSchema.wrapPrimitiveObject(keyValue, SchemaType.KEY_VALUE, new byte[] {}),
+        "keyValueEncodingType, key.value, key.schemaType, value.value, value.schemaType");
+  }
+
+  @Test
+  void testExcludedKVFields() throws Exception {
+    doAnswer(
+            invocationOnMock -> {
+              InvokeRequest request = invocationOnMock.getArgument(0, InvokeRequest.class);
+              assertEquals(
+                  new String(request.getPayload().array(), StandardCharsets.UTF_8),
+                  "{'schemaType':'KEY_VALUE'}".replace("'", "\""));
+              InvokeResult result =
+                  new InvokeResult()
+                      .withPayload(ByteBuffer.wrap("{}".getBytes(StandardCharsets.UTF_8)))
+                      .withStatusCode(200);
+              return CompletableFuture.completedFuture(result);
+            })
+        .when(client)
+        .invokeAsync(any(InvokeRequest.class));
+
+    Schema<KeyValue<String, String>> keyValueSchema =
+        KeyValueSchemaImpl.of(Schema.STRING, Schema.STRING, KeyValueEncodingType.SEPARATED);
+    KeyValue<String, String> keyValue = new KeyValue<>("key", "value");
+
+    processRecord(
+        keyValueSchema,
+        AutoConsumeSchema.wrapPrimitiveObject(keyValue, SchemaType.KEY_VALUE, new byte[] {}),
+        "keyValueEncodingType, key, value");
   }
 
   @Test
@@ -688,8 +802,14 @@ public class AWSLambdaFunctionTest {
   }
 
   private Record<?> processRecord(Schema<?> schema, GenericRecord genericRecord) throws Exception {
+    return processRecord(schema, genericRecord, "");
+  }
+
+  private Record<?> processRecord(
+      Schema<?> schema, GenericRecord genericRecord, String excludedFields) throws Exception {
     TestRecord<Object> record = TestRecord.builder().value(genericRecord).schema(schema).build();
     Map<String, Object> config = new HashMap<>();
+    config.put("excludedFields", excludedFields);
 
     TestContext context = new TestContext(record, config);
     function.initialize(context);

@@ -48,18 +48,13 @@ public class JsonNodeSchema implements Schema<JsonNode> {
   }
 
   @Override
-  public JsonNode decode(byte[] bytes, byte[] schemaVersion) {
+  public JsonNode decode(byte[] bytes) {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public SchemaInfo getSchemaInfo() {
     return schemaInfo;
-  }
-
-  @Override
-  public JsonNode decode(byte[] bytes) {
-    return Schema.super.decode(bytes);
   }
 
   @Override

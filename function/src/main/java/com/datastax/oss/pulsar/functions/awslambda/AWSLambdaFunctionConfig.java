@@ -81,4 +81,11 @@ public class AWSLambdaFunctionConfig implements Serializable {
     help = "json-parameters to initialize `AwsCredentialsProviderPlugin`"
   )
   private String awsCredentialPluginParam = "";
+
+  @FieldDoc(
+    defaultValue = "",
+    help =
+        "Comma separated list of fields to exclude from the request done to the Lambda service. Nested fields are referenced using a point separator. Eg: value.key.value.schema"
+  )
+  private String excludedFields = "";
 }

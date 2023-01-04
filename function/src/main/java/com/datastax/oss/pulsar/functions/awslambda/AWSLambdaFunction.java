@@ -232,24 +232,30 @@ public class AWSLambdaFunction extends AbstractAwsConnector
             record.getValue().getNativeObject(),
             record.getKey().orElse(null),
             "");
-    if (!excludedFields.contains("topicName")) {
-      record.getTopicName().ifPresent(payload::setTopicName);
-    }
-    if (!excludedFields.contains("destinationTopic")) {
-      record.getDestinationTopic().ifPresent(payload::setDestinationTopic);
-    }
-    if (!excludedFields.contains("eventTime")) {
-      record.getEventTime().ifPresent(payload::setEventTime);
-    }
-    if (!excludedFields.contains("partitionId")) {
-      record.getPartitionId().ifPresent(payload::setPartitionId);
-    }
-    if (!excludedFields.contains("partitionIndex")) {
-      record.getPartitionIndex().ifPresent(payload::setPartitionIndex);
-    }
-    if (!excludedFields.contains("recordSequence")) {
-      record.getRecordSequence().ifPresent(payload::setRecordSequence);
-    }
+    record
+        .getTopicName()
+        .filter(__ -> !excludedFields.contains("topicName"))
+        .ifPresent(payload::setTopicName);
+    record
+        .getDestinationTopic()
+        .filter(__ -> !excludedFields.contains("destinationTopic"))
+        .ifPresent(payload::setDestinationTopic);
+    record
+        .getEventTime()
+        .filter(__ -> !excludedFields.contains("eventTime"))
+        .ifPresent(payload::setEventTime);
+    record
+        .getPartitionId()
+        .filter(__ -> !excludedFields.contains("partitionId"))
+        .ifPresent(payload::setPartitionId);
+    record
+        .getPartitionIndex()
+        .filter(__ -> !excludedFields.contains("partitionIndex"))
+        .ifPresent(payload::setPartitionIndex);
+    record
+        .getRecordSequence()
+        .filter(__ -> !excludedFields.contains("recordSequence"))
+        .ifPresent(payload::setRecordSequence);
     if (!excludedFields.contains("properties") && record.getProperties() != null) {
       payload.setProperties(new HashMap<>(record.getProperties()));
     }
